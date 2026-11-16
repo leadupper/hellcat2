@@ -1,0 +1,2969 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Exported Web Page</title>
+  <style>
+
+    /* =========================================================================
+       1. 全域重置與無外部依賴系統字體堆疊 (100% Offline CSS3)
+       ========================================================================= */
+    :root {
+      --bg-dark: #09050d;
+      --panel-bg: rgba(18, 10, 26, 0.80);
+      --panel-border: rgba(255, 255, 255, 0.16);
+      --accent-crimson: #f43f5e;
+      --accent-orange: #fb923c;
+      --accent-amber: #fbbf24;
+      --accent-violet: #a855f7;
+      --accent-emerald: #34d399;
+      --text-main: #f8fafc;
+      --text-muted: #a1a1aa;
+      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", "Noto Sans TC", "Segoe UI", Roboto, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: var(--font-sans);
+      color: var(--text-main);
+      touch-action: none;
+    }
+
+    /* =========================================================================
+       2. 遊戲主畫布與鏡像/顛倒詛咒特效容器
+       ========================================================================= */
+    #game-wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    #game-wrapper.upside-down {
+      transform: rotate(180deg);
+    }
+
+    #game-wrapper.mirror-flip {
+      transform: scaleX(-1);
+    }
+
+    canvas#gl-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* =========================================================================
+       3. 玻璃擬態 (Glassmorphism) HUD 介面
+       ========================================================================= */
+    .hud-top {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .glass-card {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 9px 14px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.48);
+      pointer-events: auto;
+    }
+
+    .tech-badges {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-hell {
+      background: rgba(244, 63, 94, 0.22);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.5);
+    }
+
+    .badge-chapter {
+      background: rgba(168, 85, 247, 0.22);
+      color: #d8b4fe;
+      border: 1px solid rgba(168, 85, 247, 0.45);
+    }
+
+    .badge-wasm {
+      background: rgba(251, 146, 60, 0.2);
+      color: #fdba74;
+      border: 1px solid rgba(251, 146, 60, 0.45);
+    }
+
+    .badge-webgl {
+      background: rgba(52, 211, 153, 0.2);
+      color: #6ee7b7;
+      border: 1px solid rgba(52, 211, 153, 0.45);
+    }
+
+    .dot-pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: currentColor;
+      animation: pulse 1.4s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.75); }
+    }
+
+    .stats-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .stat-value.iq-neg {
+      color: var(--accent-crimson);
+    }
+
+    .stat-value.dist-val {
+      color: var(--accent-orange);
+    }
+
+    .stat-value.cp-val {
+      color: var(--accent-amber);
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      pointer-events: auto;
+    }
+
+    .btn-ui {
+      appearance: none;
+      border: 1px solid var(--panel-border);
+      background: rgba(28, 16, 40, 0.88);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 11px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+    }
+
+    .btn-ui:hover {
+      background: rgba(58, 28, 78, 0.95);
+      transform: translateY(-1px);
+    }
+
+    .btn-ui:active {
+      transform: translateY(1px) scale(0.97);
+    }
+
+    .btn-ui.active-mode {
+      background: linear-gradient(135deg, #e11d48, #9333ea);
+      border-color: #fda4af;
+    }
+
+    /* =========================================================================
+       4. 嘲諷彈幕與假當機系統彈窗 (Troll Toast & Fake System Crash Popup)
+       ========================================================================= */
+    #troll-toast {
+      position: absolute;
+      top: 18.5%;
+      left: 50%;
+      transform: translate(-50%, -20px) scale(0.9);
+      background: rgba(18, 8, 28, 0.94);
+      border: 2px solid var(--accent-amber);
+      color: #fef08a;
+      padding: 10px 22px;
+      border-radius: 999px;
+      font-size: clamp(13px, 2.8vw, 19px);
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 32;
+      text-align: center;
+      max-width: 92vw;
+      transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    #troll-toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    /* 陷阱 #3：逼真「假系統錯誤彈窗」（一旦點擊確定會變成巨鎚砸死玩家！） */
+    #fake-crash-dialog {
+      position: absolute;
+      top: 32%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.85);
+      width: min(340px, 88vw);
+      background: #1e1b2e;
+      border: 2px solid #f43f5e;
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+      z-index: 31;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      animation: popAlert 0.2s ease forwards;
+    }
+
+    @keyframes popAlert {
+      to { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    .crash-titlebar {
+      background: linear-gradient(90deg, #be123c, #7e22ce);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+    }
+
+    .crash-body {
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #e2e8f0;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    .crash-actions {
+      padding: 10px 16px 14px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .crash-btn {
+      background: #f43f5e;
+      border: none;
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .crash-btn.secondary {
+      background: #334155;
+    }
+
+    /* =========================================================================
+       5. 覆蓋層面板 (開始畫面 / 死亡嘲諷結算 / 50關傳送門選單)
+       ========================================================================= */
+    .overlay-modal {
+      position: absolute;
+      inset: 0;
+      background: rgba(6, 3, 12, 0.80);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 40;
+      transition: opacity 0.22s ease;
+    }
+
+    .overlay-modal.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 560px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: linear-gradient(165deg, rgba(32, 16, 48, 0.96), rgba(14, 7, 22, 0.99));
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      border-radius: 24px;
+      padding: 22px 20px;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.78);
+    }
+
+    .hellcat-emblem {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 10px;
+      background: radial-gradient(circle at 30% 30%, rgba(244, 63, 94, 0.28), rgba(147, 51, 234, 0.14));
+      border: 1px solid rgba(244, 63, 94, 0.45);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 24px rgba(244, 63, 94, 0.25);
+    }
+
+    .modal-title {
+      font-size: clamp(23px, 5vw, 31px);
+      font-weight: 900;
+      margin-bottom: 6px;
+      background: linear-gradient(to right, #fda4af, #fb923c, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 1px;
+    }
+
+    .modal-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 14px;
+    }
+
+    .death-roast-box {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.45);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .death-roast-title {
+      font-size: 12px;
+      color: #fda4af;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .death-roast-text {
+      font-size: 16px;
+      font-weight: 900;
+      color: #fff1f2;
+    }
+
+    /* 50 Checkpoints 傳送門格仔網 */
+    .cp-selector-panel {
+      background: rgba(10, 5, 18, 0.74);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 14px;
+      text-align: left;
+    }
+
+    .cp-selector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #fdba74;
+    }
+
+    .cp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+      gap: 6px;
+      max-height: 156px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .cp-chip {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(30, 18, 44, 0.8);
+      color: #94a3b8;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 4px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+
+    .cp-chip.unlocked {
+      background: rgba(244, 63, 94, 0.2);
+      border-color: rgba(244, 63, 94, 0.5);
+      color: #ffe4e6;
+    }
+
+    .cp-chip.current {
+      background: linear-gradient(135deg, #f43f5e, #fb923c);
+      border-color: #fef08a;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(244, 63, 94, 0.5);
+    }
+
+    .cp-chip:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .key-guide {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+      text-align: left;
+    }
+
+    .key-box {
+      background: rgba(12, 6, 20, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 9px 11px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .key-box strong {
+      display: block;
+      color: var(--accent-orange);
+      margin-bottom: 2px;
+      font-size: 13px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      appearance: none;
+      border: none;
+      background: linear-gradient(135deg, #e11d48, #9333ea);
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+      padding: 13px 20px;
+      border-radius: 16px;
+      cursor: pointer;
+      box-shadow: 0 10px 26px rgba(225, 29, 72, 0.42);
+      transition: transform 0.15s ease, filter 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-2px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    /* =========================================================================
+       6. 手機 / 平板跨裝置觸控按鈕區 (支援「小偷鬼偷走跳躍鍵」反智特效！)
+       ========================================================================= */
+    .touch-controls {
+      position: absolute;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      left: max(18px, env(safe-area-inset-left));
+      right: max(18px, env(safe-area-inset-right));
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 25;
+    }
+
+    .touch-btn {
+      pointer-events: auto;
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      background: rgba(22, 11, 34, 0.65);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid rgba(244, 63, 94, 0.35);
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      font-weight: 800;
+      font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      transition: transform 0.15s ease, background 0.15s ease, opacity 0.25s ease;
+    }
+
+    .touch-btn:active, .touch-btn.pressed {
+      transform: scale(0.9);
+      background: rgba(244, 63, 94, 0.45);
+      border-color: #fb923c;
+    }
+
+    /* 被地獄小偷鬼偷走跳躍鍵時的狀態 */
+    .touch-btn.stolen {
+      opacity: 0.22;
+      border-style: dashed;
+      border-color: #94a3b8;
+      transform: scale(0.82) rotate(-18deg);
+      pointer-events: none;
+    }
+
+    .touch-btn svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    @media (min-width: 900px) and (pointer: fine) {
+      .touch-controls {
+        opacity: 0.55;
+      }
+      .touch-controls:hover {
+        opacity: 0.98;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .glass-card {
+        padding: 6px 10px;
+      }
+      .stat-value {
+        font-size: 13.5px;
+      }
+      .btn-ui {
+        padding: 6px 9px;
+        font-size: 11px;
+      }
+      .touch-btn {
+        width: 74px;
+        height: 74px;
+      }
+    }
+  
+  </style>
+</head>
+<body>
+<div id="game-wrapper">
+    <!-- WebGL 2D/2.5D 渲染畫布 -->
+    <canvas id="gl-canvas"></canvas>
+
+    <!-- 頂部玻璃擬態 HUD -->
+    <header class="hud-top">
+      <div class="glass-card">
+        <div class="tech-badges">
+          <span class="badge badge-hell"><span class="dot-pulse"></span>地獄貓 · 26種反智陷阱</span>
+          <span class="badge badge-chapter" id="hud-chapter">第一章：焦土荒誕</span>
+          <span class="badge badge-wasm" id="wasm-status">WASM: 載入中...</span>
+          <span class="badge badge-webgl" id="webgl-status">WebGL: 啟動中</span>
+        </div>
+        <div class="stats-row">
+          <div class="stat-item">
+            <span class="stat-label">煉獄進度</span>
+            <span class="stat-value dist-val" id="hud-dist">0 m (0%)</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">貓靈智商 (IQ)</span>
+            <span class="stat-value" id="hud-iq">200</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">中伏次數</span>
+            <span class="stat-value" id="hud-deaths">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Checkpoints</span>
+            <span class="stat-value cp-val" id="hud-cp">CP-0 / 50</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls-group">
+        <button class="btn-ui active-mode" id="btn-cp-menu" title="打開 50 個檢查點傳送門">
+          <span>🚩 傳送門 (CP)</span>
+        </button>
+        <button class="btn-ui" id="btn-mode" title="切換模式">
+          <span>🔥 50關長征</span>
+        </button>
+        <button class="btn-ui" id="btn-bgm" title="開關8-bit煉獄電音">
+          <span>🎵 音樂: 開</span>
+        </button>
+        <button class="btn-ui" id="btn-sfx" title="開關音效">
+          <span>🔊 音效: 開</span>
+        </button>
+        <button class="btn-ui" id="btn-restart" title="快速重開 (R)">
+          <span>↻ 重來</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 陷阱 #3：逼真「假系統當機/錯誤彈窗」 -->
+    <div id="fake-crash-dialog">
+      <div class="crash-titlebar">
+        <span>⚠️ 煉獄系統核心警告 (0xDEADCAT)</span>
+        <span id="crash-close-x" style="cursor:pointer;">✕</span>
+      </div>
+      <div class="crash-body">
+        偵測到前方路況過於危險！為保護閣下貓命，請立即點擊「確定」領取免費無敵護盾。
+      </div>
+      <div class="crash-actions">
+        <button class="crash-btn secondary" id="crash-btn-cancel">忽略</button>
+        <button class="crash-btn" id="crash-btn-ok">確定 (領取護盾)</button>
+      </div>
+    </div>
+
+    <!-- 動態嘲諷字幕 -->
+    <div id="troll-toast">咁都中伏？閻羅王都睇到笑！</div>
+
+    <!-- 手機/平板跨裝置觸控按鍵 -->
+    <div class="touch-controls">
+      <button class="touch-btn" id="touch-duck" aria-label="蹲下">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14M5 12l7 7 7-7"></path>
+        </svg>
+        <span id="duck-btn-label">蹲下</span>
+      </button>
+      <button class="touch-btn" id="touch-jump" aria-label="跳躍">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19V5M5 12l7-7 7 7"></path>
+        </svg>
+        <span id="jump-btn-label">跳躍×2</span>
+      </button>
+    </div>
+
+    <!-- 開始 / 死亡 / 50 Checkpoints 選單覆蓋層 -->
+    <div class="overlay-modal" id="overlay-modal">
+      <div class="modal-card">
+        <div class="hellcat-emblem">
+          <svg width="44" height="44" viewBox="0 0 36 36" fill="none">
+            <path d="M7 13L4 4L13 9H23L32 4L29 13V22L24 28H12L7 22V13Z" fill="#f43f5e"></path>
+            <path d="M9 12L7 7L12 10H24L29 7L27 12V21L23 26H13L9 21V12Z" fill="#18181b"></path>
+            <polygon points="11,15 16,17 11,19" fill="#fbbf24"></polygon>
+            <polygon points="25,15 20,17 25,19" fill="#fbbf24"></polygon>
+            <path d="M15 22L18 20L21 22" stroke="#fb923c" stroke-width="2" stroke-linecap="round"></path>
+          </svg>
+        </div>
+        <h1 class="modal-title" id="modal-title">地獄貓 HELL CAT</h1>
+        <p class="modal-subtitle" id="modal-desc">
+          收錄 <strong>26 種完全唔同嘅反智反常識陷阱</strong> × <b>50 個 Checkpoints</b>！<br>
+          假安全路牌斬殺、天花板倒立跑、回頭殺噴射石頭、海綿假地刺、小偷鬼偷走跳躍鍵、彈射上太空彈簧、假 CP 核爆旗……<br>
+          煉獄鐵則：<b>用正常人類邏輯思考你就輸咗！</b>
+        </p>
+
+        <div class="death-roast-box" id="death-box" style="display: none;">
+          <div class="death-roast-title" id="death-cause">死因分析：不明詛咒撞擊</div>
+          <div class="death-roast-text" id="death-quote">「咁簡單都跳唔過，你隻貓係咪盲咗？」</div>
+        </div>
+
+        <!-- 50 Checkpoints 進度傳送門 -->
+        <div class="cp-selector-panel">
+          <div class="cp-selector-header">
+            <span>🚩 煉獄傳送門 (已解鎖: <span id="unlocked-count">CP-0</span> / CP-50)</span>
+            <span id="selected-cp-label" style="color:#fda4af;">目前起點: CP-0</span>
+          </div>
+          <div class="cp-grid" id="cp-grid"></div>
+        </div>
+
+        <div class="key-guide">
+          <div class="key-box">
+            <strong>💻 電腦鍵盤操作</strong>
+            空白鍵 / ↑ / W：二段跳<br>
+            ↓ / S：蹲下閃避 / 千斤墜<br>
+            R 鍵：秒速投胎重開
+          </div>
+          <div class="key-box">
+            <strong>📱 手機 / 平板觸控</strong>
+            點擊畫面 / 跳躍鈕：跳躍<br>
+            按住蹲下鈕：蹲下或倒吊<br>
+            小心跳躍鍵隨時被鬼偷走！
+          </div>
+        </div>
+
+        <button class="btn-primary" id="btn-start">踏入煉獄 (Start Hell Run)</button>
+      </div>
+    </div>
+  </div>
+  <script>
+
+    /**
+     * ============================================================================
+     * 模組 A：嵌入式 WebAssembly (WASM) 原生二進制物理與碰撞引擎
+     * ============================================================================
+     */
+    const WasmPhysicsEngine = (() => {
+      const wasmBytes = new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d,
+        0x01, 0x00, 0x00, 0x00,
+        0x01, 0x18, 0x03,
+        0x60, 0x04, 0x7d, 0x7d, 0x7d, 0x7d, 0x01, 0x7d,
+        0x60, 0x03, 0x7d, 0x7d, 0x7d, 0x01, 0x7d,
+        0x60, 0x08, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x01, 0x7f,
+        0x03, 0x04, 0x03, 0x00, 0x01, 0x02,
+        0x07, 0x1d, 0x03,
+        0x06, 0x73, 0x74, 0x65, 0x70, 0x5f, 0x79, 0x00, 0x00,
+        0x07, 0x73, 0x74, 0x65, 0x70, 0x5f, 0x76, 0x79, 0x00, 0x01,
+        0x08, 0x61, 0x61, 0x62, 0x62, 0x5f, 0x68, 0x69, 0x74, 0x00, 0x02,
+        0x0a, 0x45, 0x03,
+        0x13, 0x00,
+        0x20, 0x00, 0x20, 0x01,
+        0x43, 0x00, 0x00, 0x00, 0x3f,
+        0x20, 0x02, 0x94, 0x20, 0x03, 0x94, 0x92,
+        0x20, 0x03, 0x94, 0x92,
+        0x0b,
+        0x09, 0x00,
+        0x20, 0x00, 0x20, 0x01, 0x20, 0x02, 0x94, 0x92,
+        0x0b,
+        0x23, 0x00,
+        0x20, 0x00, 0x20, 0x04, 0x20, 0x06, 0x92, 0x5d,
+        0x20, 0x00, 0x20, 0x02, 0x92, 0x20, 0x04, 0x5e,
+        0x71,
+        0x20, 0x01, 0x20, 0x05, 0x20, 0x07, 0x92, 0x5d,
+        0x71,
+        0x20, 0x01, 0x20, 0x03, 0x92, 0x20, 0x05, 0x5e,
+        0x71,
+        0x0b
+      ]);
+
+      let exports = null;
+      let isReady = false;
+
+      async function init() {
+        const statusEl = document.getElementById('wasm-status');
+        try {
+          const result = await WebAssembly.instantiate(wasmBytes);
+          exports = result.instance.exports;
+          isReady = true;
+          statusEl.textContent = 'WASM: 原生運算中';
+        } catch (err) {
+          statusEl.textContent = 'WASM: JS 後備模式';
+        }
+      }
+
+      return {
+        init,
+        stepY(y, vy, g, dt) {
+          return isReady ? exports.step_y(y, vy, g, dt) : y + (vy + 0.5 * g * dt) * dt;
+        },
+        stepVy(vy, g, dt) {
+          return isReady ? exports.step_vy(vy, g, dt) : vy + g * dt;
+        },
+        aabbHit(ax, ay, aw, ah, bx, by, bw, bh) {
+          return isReady
+            ? exports.aabb_hit(ax, ay, aw, ah, bx, by, bw, bh) === 1
+            : (ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by);
+        }
+      };
+    })();
+
+    /**
+     * ============================================================================
+     * 模組 B：Web Audio API 離線 8-bit 煉獄電子音樂與音效合成器
+     * ============================================================================
+     */
+    const HellAudio = (() => {
+      let ctx = null;
+      let sfxEnabled = true;
+      let bgmEnabled = true;
+      let bgmTimer = null;
+      let noteIndex = 0;
+
+      const MELODY = [
+        220, 262, 330, 311, 220, 0, 247, 262, 330, 392, 370, 330, 262, 0, 220, 0,
+        247, 294, 349, 330, 247, 0, 262, 294, 349, 440, 415, 349, 330, 0, 0, 0,
+        330, 311, 294, 277, 262, 247, 233, 220, 196, 220, 247, 262, 311, 0, 220, 0
+      ];
+
+      function ensureCtx() {
+        if (!ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) ctx = new AudioCtx();
+        }
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume();
+        }
+      }
+
+      function playTone(freq, type, duration, vol = 0.12, slideTo = null) {
+        if (!sfxEnabled || !freq) return;
+        ensureCtx();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (slideTo) {
+          osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), now + duration);
+        }
+
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+      }
+
+      function startBGM() {
+        if (bgmTimer) clearInterval(bgmTimer);
+        bgmTimer = setInterval(() => {
+          if (!bgmEnabled || !ctx || ctx.state !== 'running') return;
+          const freq = MELODY[noteIndex % MELODY.length];
+          noteIndex++;
+          if (freq > 0) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.034, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.15);
+          }
+        }, 160);
+      }
+
+      return {
+        unlock() {
+          ensureCtx();
+          if (!bgmTimer) startBGM();
+        },
+        toggleSFX() {
+          sfxEnabled = !sfxEnabled;
+          return sfxEnabled;
+        },
+        toggleBGM() {
+          bgmEnabled = !bgmEnabled;
+          ensureCtx();
+          return bgmEnabled;
+        },
+        jump(isDouble = false) {
+          playTone(isDouble ? 460 : 300, 'square', 0.13, 0.09, isDouble ? 820 : 560);
+        },
+        bonk() {
+          playTone(170, 'triangle', 0.12, 0.22, 60);
+          setTimeout(() => playTone(540, 'square', 0.08, 0.1, 220), 40);
+        },
+        boing() {
+          playTone(150, 'sine', 0.35, 0.22, 1200);
+        },
+        squish() {
+          playTone(260, 'sine', 0.12, 0.14, 140);
+        },
+        trollLaugh() {
+          playTone(620, 'sawtooth', 0.09, 0.09, 460);
+          setTimeout(() => playTone(540, 'sawtooth', 0.09, 0.09, 400), 100);
+          setTimeout(() => playTone(480, 'sawtooth', 0.13, 0.09, 310), 200);
+        },
+        checkpoint() {
+          [392, 494, 587, 784].forEach((f, idx) => {
+            setTimeout(() => playTone(f, 'triangle', 0.11, 0.1), idx * 60);
+          });
+        },
+        powerup() {
+          [330, 392, 659, 523, 587, 784].forEach((f, idx) => {
+            setTimeout(() => playTone(f, 'square', 0.09, 0.09), idx * 55);
+          });
+        },
+        die() {
+          playTone(420, 'sawtooth', 0.16, 0.16, 200);
+          setTimeout(() => playTone(294, 'sawtooth', 0.18, 0.16, 130), 140);
+          setTimeout(() => playTone(185, 'sawtooth', 0.35, 0.18, 50), 290);
+        }
+      };
+    })();
+
+    /**
+     * ============================================================================
+     * 模組 C：WebGL 2D/2.5D 批量幾何與五大煉獄領域天空著色器渲染引擎
+     * ============================================================================
+     */
+    class WebGLRenderer {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.gl = canvas.getContext('webgl', { alpha: false, antialias: true });
+        if (!this.gl) {
+          document.getElementById('webgl-status').textContent = 'WebGL: 不支援';
+          throw new Error('WebGL not supported');
+        }
+        document.getElementById('webgl-status').textContent = 'WebGL: 60FPS 運行中';
+
+        this.virtualWidth = 1280;
+        this.virtualHeight = 720;
+        this.maxVertices = 42000;
+        this.vertexData = new Float32Array(this.maxVertices * 6);
+        this.vertexCount = 0;
+
+        this.initShaders();
+        this.initBuffers();
+      }
+
+      initShaders() {
+        const gl = this.gl;
+
+        const skyVS = `
+          attribute vec2 a_pos;
+          varying vec2 v_uv;
+          void main() {
+            v_uv = a_pos * 0.5 + 0.5;
+            gl_Position = vec4(a_pos, 0.0, 1.0);
+          }
+        `;
+
+        const skyFS = `
+          precision mediump float;
+          varying vec2 v_uv;
+          uniform float u_time;
+          uniform float u_chaos;
+          uniform vec3 u_topColor;
+          uniform vec3 u_botColor;
+          uniform vec3 u_moonColor;
+
+          void main() {
+            vec3 col = mix(u_botColor, u_topColor, pow(v_uv.y, 0.76));
+
+            vec2 moonPos = vec2(0.78, 0.70);
+            vec2 aspectUv = vec2(v_uv.x * 1.77, v_uv.y);
+            vec2 aspectMoon = vec2(moonPos.x * 1.77, moonPos.y);
+            float d = distance(aspectUv, aspectMoon);
+            if (d < 0.15) {
+              float stripe = step(0.22, fract(v_uv.y * 44.0 - u_time * 0.35));
+              col = mix(col, u_moonColor, stripe * (1.0 - smoothstep(0.135, 0.15, d)));
+            }
+
+            if (u_chaos > 0.01) {
+              float pulse = 0.5 + 0.5 * sin(u_time * 11.0);
+              col += vec3(0.24, 0.02, 0.08) * u_chaos * pulse;
+            }
+
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `;
+
+        const spriteVS = `
+          attribute vec2 a_position;
+          attribute vec4 a_color;
+          uniform vec2 u_resolution;
+          uniform vec2 u_shake;
+          varying vec4 v_color;
+          void main() {
+            vec2 pos = a_position + u_shake;
+            vec2 zeroToOne = pos / u_resolution;
+            vec2 zeroToTwo = zeroToOne * 2.0;
+            vec2 clipSpace = zeroToTwo - 1.0;
+            gl_Position = vec4(clipSpace * vec2(1.0, -1.0), 0.0, 1.0);
+            v_color = a_color;
+          }
+        `;
+
+        const spriteFS = `
+          precision mediump float;
+          varying vec4 v_color;
+          void main() {
+            gl_FragColor = v_color;
+          }
+        `;
+
+        this.skyProgram = this.createProgram(skyVS, skyFS);
+        this.spriteProgram = this.createProgram(spriteVS, spriteFS);
+      }
+
+      createProgram(vsSrc, fsSrc) {
+        const gl = this.gl;
+        const vs = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vs, vsSrc);
+        gl.compileShader(vs);
+
+        const fs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fs, fsSrc);
+        gl.compileShader(fs);
+
+        const prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        return prog;
+      }
+
+      initBuffers() {
+        const gl = this.gl;
+        this.quadBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+          -1, -1,  1, -1, -1,  1,
+          -1,  1,  1, -1,  1,  1
+        ]), gl.STATIC_DRAW);
+
+        this.batchBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.batchBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.vertexData.byteLength, gl.DYNAMIC_DRAW);
+
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      }
+
+      resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        this.canvas.width = Math.floor(w * dpr);
+        this.canvas.height = Math.floor(h * dpr);
+        this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
+        const aspect = w / Math.max(1, h);
+        this.virtualHeight = 720;
+        this.virtualWidth = Math.max(640, Math.min(1600, Math.round(720 * aspect)));
+      }
+
+      beginFrame(time, chaosLevel, biomeTheme) {
+        const gl = this.gl;
+        this.vertexCount = 0;
+
+        gl.useProgram(this.skyProgram);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
+        const posLoc = gl.getAttribLocation(this.skyProgram, 'a_pos');
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+        gl.uniform1f(gl.getUniformLocation(this.skyProgram, 'u_time'), time);
+        gl.uniform1f(gl.getUniformLocation(this.skyProgram, 'u_chaos'), chaosLevel);
+        gl.uniform3fv(gl.getUniformLocation(this.skyProgram, 'u_topColor'), biomeTheme.top);
+        gl.uniform3fv(gl.getUniformLocation(this.skyProgram, 'u_botColor'), biomeTheme.bot);
+        gl.uniform3fv(gl.getUniformLocation(this.skyProgram, 'u_moonColor'), biomeTheme.moon);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+
+      pushTri(x1, y1, x2, y2, x3, y3, r, g, b, a = 1) {
+        if (this.vertexCount + 3 >= this.maxVertices) return;
+        let idx = this.vertexCount * 6;
+        const d = this.vertexData;
+        d[idx++] = x1; d[idx++] = y1; d[idx++] = r; d[idx++] = g; d[idx++] = b; d[idx++] = a;
+        d[idx++] = x2; d[idx++] = y2; d[idx++] = r; d[idx++] = g; d[idx++] = b; d[idx++] = a;
+        d[idx++] = x3; d[idx++] = y3; d[idx++] = r; d[idx++] = g; d[idx++] = b; d[idx++] = a;
+        this.vertexCount += 3;
+      }
+
+      drawRect(x, y, w, h, color, topColor = null) {
+        const [r1, g1, b1, a1 = 1] = topColor || color;
+        const [r2, g2, b2, a2 = 1] = color;
+        if (this.vertexCount + 6 >= this.maxVertices) return;
+        let idx = this.vertexCount * 6;
+        const d = this.vertexData;
+        const x2 = x + w, y2 = y + h;
+
+        d[idx++] = x;  d[idx++] = y;  d[idx++] = r1; d[idx++] = g1; d[idx++] = b1; d[idx++] = a1;
+        d[idx++] = x2; d[idx++] = y;  d[idx++] = r1; d[idx++] = g1; d[idx++] = b1; d[idx++] = a1;
+        d[idx++] = x;  d[idx++] = y2; d[idx++] = r2; d[idx++] = g2; d[idx++] = b2; d[idx++] = a2;
+
+        d[idx++] = x;  d[idx++] = y2; d[idx++] = r2; d[idx++] = g2; d[idx++] = b2; d[idx++] = a2;
+        d[idx++] = x2; d[idx++] = y;  d[idx++] = r1; d[idx++] = g1; d[idx++] = b1; d[idx++] = a1;
+        d[idx++] = x2; d[idx++] = y2; d[idx++] = r2; d[idx++] = g2; d[idx++] = b2; d[idx++] = a2;
+
+        this.vertexCount += 6;
+      }
+
+      drawBevelBox(x, y, w, h, baseCol, lightCol, darkCol, border = 3) {
+        this.drawRect(x, y, w, h, darkCol);
+        this.drawRect(x, y, w - border, h - border, lightCol);
+        this.drawRect(x + border, y + border, w - border * 2, h - border * 2, baseCol);
+      }
+
+      drawSpike(x, y, w, h, pointUp = true, color = [0.96, 0.25, 0.38, 1]) {
+        const shade = [color[0] * 0.65, color[1] * 0.65, color[2] * 0.65, 1];
+        if (pointUp) {
+          this.pushTri(x, y + h, x + w * 0.5, y, x + w * 0.5, y + h, ...color);
+          this.pushTri(x + w * 0.5, y, x + w, y + h, x + w * 0.5, y + h, ...shade);
+        } else {
+          this.pushTri(x, y, x + w * 0.5, y + h, x + w * 0.5, y, ...color);
+          this.pushTri(x + w * 0.5, y + h, x + w, y, x + w * 0.5, y, ...shade);
+        }
+      }
+
+      flush(shakeX = 0, shakeY = 0) {
+        if (this.vertexCount === 0) return;
+        const gl = this.gl;
+        gl.useProgram(this.spriteProgram);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.batchBuffer);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, this.vertexCount * 6));
+
+        const stride = 6 * 4;
+        const posLoc = gl.getAttribLocation(this.spriteProgram, 'a_position');
+        const colLoc = gl.getAttribLocation(this.spriteProgram, 'a_color');
+
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, stride, 0);
+
+        gl.enableVertexAttribArray(colLoc);
+        gl.vertexAttribPointer(colLoc, 4, gl.FLOAT, false, stride, 2 * 4);
+
+        gl.uniform2f(gl.getUniformLocation(this.spriteProgram, 'u_resolution'), this.virtualWidth, this.virtualHeight);
+        gl.uniform2f(gl.getUniformLocation(this.spriteProgram, 'u_shake'), shakeX, shakeY);
+
+        gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
+      }
+    }
+
+    /**
+     * ============================================================================
+     * 模組 D：26 種反智反常識陷阱圖鑑 & 50 Checkpoints 關卡編排器
+     * ============================================================================
+     */
+    const CHAPTER_THEMES = [
+      {
+        name: '第一章：焦土荒誕 (CP 0-10)',
+        top: [0.16, 0.06, 0.14],
+        bot: [0.78, 0.24, 0.22],
+        moon: [1.0, 0.82, 0.32],
+        groundEdge: [0.96, 0.35, 0.25, 1]
+      },
+      {
+        name: '第二章：反重力顛倒屋 (CP 11-20)',
+        top: [0.09, 0.05, 0.22],
+        bot: [0.46, 0.16, 0.62],
+        moon: [0.85, 0.72, 1.0],
+        groundEdge: [0.75, 0.35, 0.98, 1]
+      },
+      {
+        name: '第三章：時空錯亂深淵 (CP 21-30)',
+        top: [0.03, 0.10, 0.18],
+        bot: [0.08, 0.42, 0.52],
+        moon: [0.45, 0.96, 0.92],
+        groundEdge: [0.22, 0.86, 0.78, 1]
+      },
+      {
+        name: '第四章：精神污染劇場 (CP 31-40)',
+        top: [0.18, 0.03, 0.12],
+        bot: [0.68, 0.10, 0.38],
+        moon: [1.0, 0.35, 0.55],
+        groundEdge: [0.98, 0.24, 0.52, 1]
+      },
+      {
+        name: '第五章：地獄魔王終章 (CP 41-50)',
+        top: [0.05, 0.02, 0.04],
+        bot: [0.85, 0.18, 0.08],
+        moon: [1.0, 0.95, 0.75],
+        groundEdge: [1.0, 0.65, 0.12, 1]
+      }
+    ];
+
+    const TROLL_QUOTES = [
+      "「寫住『安全』你都信？你係咪連詐騙電話都信？」",
+      "「海綿刺軟綿綿咁好踩，點解你要跳上去炸死自己？」",
+      "「小偷鬼偷走你個跳躍鍵嗰陣，記得用蹲下滑過去呀！」",
+      "「跳跳彈簧專登射你上太空餵外星人㗎，唔好踩呀！」",
+      "「過咗去嘅石頭記得望下背後，佢好記仇㗎！」",
+      "「食完大漢堡縮到得返 8 像素，跳唔過粒石仔好正常啫！」",
+      "「系統錯誤彈窗你真係走去撳確定？抵你變貓餅！」",
+      "「天花板行路涼爽啲呀嘛，小心頭頂倒刺！」",
+      "「假 Checkpoint 核爆旗係地獄名產，下次睇清楚先摸！」",
+      "「牛頓嘅棺材板已經用超強力膠水封實咗！」"
+    ];
+
+    function seededRng(seed) {
+      let s = (seed * 9301 + 49297) % 233280;
+      return () => {
+        s = (s * 9301 + 49297) % 233280;
+        return s / 233280;
+      };
+    }
+
+    /**
+     * ============================================================================
+     * 模組 E：地獄貓主遊戲核心引擎 (26 種反智陷阱 + 50 Checkpoints + 自動存檔)
+     * ============================================================================
+     */
+    class HellCatGame {
+      constructor() {
+        this.canvas = document.getElementById('gl-canvas');
+        this.renderer = new WebGLRenderer(this.canvas);
+        this.renderer.resize();
+        window.addEventListener('resize', () => this.renderer.resize());
+
+        this.groundY = 560;
+        this.ceilingY = 96;
+        this.totalCheckpoints = 50;
+        this.cpSpacing = 2100;
+        this.checkpoints = Array.from({ length: this.totalCheckpoints + 1 }, (_, i) => i * this.cpSpacing);
+
+        this.mode = 'CAMPAIGN'; // 'CAMPAIGN' (50關長征) | 'ENDLESS' (無盡煉獄)
+        this.state = 'MENU';    // 'MENU' | 'PLAYING' | 'DEAD' | 'VICTORY'
+
+        this.loadSaveData();
+
+        // 畫面與反智詛咒狀態
+        this.time = 0;
+        this.shakeTimer = 0;
+        this.shakeIntensity = 0;
+        this.upsideDown = false;
+        this.mirrorFlip = false;
+        this.reverseControls = false;
+        this.ceilingGravity = false;   // 陷阱 #2：反向重力貼天花板跑
+        this.timeScale = 1.0;          // 陷阱 #9：時間加速 / 慢動作
+        this.timeScaleTimer = 0;
+        this.jumpStolenTimer = 0;      // 陷阱 #12：小偷鬼偷走跳躍鍵
+        this.waveGroundTimer = 0;      // 陷阱 #14：地面波浪地震
+        this.finalBossChase = false;   // 陷阱 #20：第 50 關終極地獄魔王追殺
+        this.bossX = -300;
+        this.crashTrapActive = false;  // 陷阱 #3：假系統彈窗狀態
+        this.crashTrapTimer = 0;
+
+        this.entities = [];
+        this.particles = [];
+        this.clouds = [];
+        this.mountains = [];
+        this.thiefGhost = null;
+
+        this.initParallax();
+        this.renderCheckpointGrid();
+        this.resetPlayer(this.checkpoints[this.checkpointIndex]);
+        this.bindEvents();
+      }
+
+      loadSaveData() {
+        try {
+          const raw = localStorage.getItem('hellcat_26traps_50cp_v2');
+          if (raw) {
+            const data = JSON.parse(raw);
+            this.maxUnlockedCp = Math.min(this.totalCheckpoints, Math.max(0, data.maxUnlockedCp || 0));
+            this.checkpointIndex = Math.min(this.maxUnlockedCp, Math.max(0, data.checkpointIndex || 0));
+            this.deaths = data.deaths || 0;
+            this.iq = typeof data.iq === 'number' ? data.iq : 200;
+            return;
+          }
+        } catch (e) {}
+        this.maxUnlockedCp = 0;
+        this.checkpointIndex = 0;
+        this.deaths = 0;
+        this.iq = 200;
+      }
+
+      saveProgress() {
+        try {
+          localStorage.setItem('hellcat_26traps_50cp_v2', JSON.stringify({
+            maxUnlockedCp: this.maxUnlockedCp,
+            checkpointIndex: this.checkpointIndex,
+            deaths: this.deaths,
+            iq: this.iq
+          }));
+        } catch (e) {}
+      }
+
+      renderCheckpointGrid() {
+        const grid = document.getElementById('cp-grid');
+        grid.innerHTML = '';
+        document.getElementById('unlocked-count').textContent = `CP-${this.maxUnlockedCp}`;
+        document.getElementById('selected-cp-label').textContent = `目前起點: CP-${this.checkpointIndex}`;
+
+        for (let i = 0; i <= this.totalCheckpoints; i++) {
+          const btn = document.createElement('button');
+          btn.className = 'cp-chip';
+          btn.textContent = `CP-${i}`;
+          const unlocked = i <= this.maxUnlockedCp;
+          if (unlocked) btn.classList.add('unlocked');
+          if (i === this.checkpointIndex) btn.classList.add('current');
+          btn.disabled = !unlocked;
+
+          btn.addEventListener('click', () => {
+            this.checkpointIndex = i;
+            this.saveProgress();
+            this.renderCheckpointGrid();
+            this.startGame();
+          });
+          grid.appendChild(btn);
+        }
+      }
+
+      initParallax() {
+        this.clouds = [];
+        for (let i = 0; i < 8; i++) {
+          this.clouds.push({
+            x: i * 240 + Math.random() * 100,
+            y: 75 + Math.random() * 165,
+            w: 95 + Math.random() * 85,
+            speed: 20 + Math.random() * 24
+          });
+        }
+        this.mountains = [];
+        for (let i = 0; i < 10; i++) {
+          this.mountains.push({
+            x: i * 260,
+            h: 130 + (i % 3) * 58,
+            w: 320
+          });
+        }
+      }
+
+      getCurrentChapterIndex() {
+        const cp = Math.min(49, Math.floor(this.distance / this.cpSpacing));
+        return Math.floor(cp / 10);
+      }
+
+      getDynamicGroundY(screenX) {
+        if (this.waveGroundTimer > 0) {
+          return this.groundY + Math.sin(screenX * 0.008 + this.time * 5.5) * 48;
+        }
+        return this.groundY;
+      }
+
+      resetPlayer(startDist = 0) {
+        this.distance = startDist;
+        this.baseSpeed = 430;
+        this.currentSpeed = this.baseSpeed;
+
+        this.player = {
+          x: 190,
+          y: this.groundY - 64,
+          w: 44,
+          h: 64,
+          vy: 0,
+          grounded: true,
+          jumpsLeft: 2,
+          ducking: false,
+          scaleX: 1,
+          scaleY: 1,
+          sizeMode: 'NORMAL', // 'NORMAL' | 'GIANT' | 'TINY'
+          sizeTimer: 0,
+          runCycle: 0
+        };
+
+        this.upsideDown = false;
+        this.mirrorFlip = false;
+        this.reverseControls = false;
+        this.ceilingGravity = false;
+        this.timeScale = 1.0;
+        this.timeScaleTimer = 0;
+        this.jumpStolenTimer = 0;
+        this.waveGroundTimer = 0;
+        this.finalBossChase = false;
+        this.bossX = -320;
+        this.thiefGhost = null;
+        this.closeCrashDialog(false);
+
+        const wrapper = document.getElementById('game-wrapper');
+        wrapper.classList.remove('upside-down', 'mirror-flip');
+        document.getElementById('touch-jump').classList.remove('stolen');
+        document.getElementById('jump-btn-label').textContent = '跳躍×2';
+
+        this.particles = [];
+        this.entities = [];
+        this.generatedUpToCp = Math.floor(startDist / this.cpSpacing);
+
+        if (this.mode === 'CAMPAIGN') {
+          const startCp = Math.floor(startDist / this.cpSpacing);
+          for (let cp = startCp; cp <= Math.min(this.totalCheckpoints, startCp + 2); cp++) {
+            this.generateCheckpointSegment(cp, startDist);
+            this.generatedUpToCp = cp;
+          }
+        } else {
+          this.nextSpawnX = 700;
+          for (let i = 0; i < 14; i++) {
+            this.spawnEndlessChunk();
+          }
+        }
+
+        this.updateHUD();
+      }
+
+      /**
+       * ========================================================================
+       * 核心設計：26 種反智反常識陷阱工廠 (按章節與 Checkpoint 精心搭配，絕不重複悶場！)
+       * ========================================================================
+       */
+      spawnTrapPattern(patternId, worldX, addEnt) {
+        switch (patternId) {
+          // 1. 【假安全提示牌】寫住「前面安全放心跳」嘅綠色路牌，靠近會飛出嚟斬殺玩家！
+          case 'FAKE_SAFE_SIGN':
+            addEnt(worldX, { type: 'FAKE_SAFE_SIGN', y: this.groundY - 78, w: 54, h: 78, triggerDist: 230 });
+            break;
+
+          // 2. 【反向重力天花板】踩中箭頭地板瞬間重力反轉，飛上天花板貼住跑避倒刺！
+          case 'CEILING_GRAVITY_RUN':
+            addEnt(worldX, { type: 'GRAV_FLIP_PAD', y: this.groundY - 14, w: 72, h: 14, toCeiling: true });
+            addEnt(worldX + 260, { type: 'CEILING_SPIKE', y: this.ceilingY, w: 96, h: 42 });
+            addEnt(worldX + 540, { type: 'GRAV_FLIP_PAD', y: this.ceilingY, w: 72, h: 14, toCeiling: false });
+            break;
+
+          // 3. 【假暫停/假當機彈窗】彈出系統錯誤視窗，撳確定或唔跳過會變巨鎚砸死玩家！
+          case 'FAKE_CRASH_HAMMER':
+            addEnt(worldX, { type: 'CRASH_TRIGGER', y: this.groundY - 220, w: 40, h: 220 });
+            break;
+
+          // 4. 【回頭殺尖刺石頭】過咗去以為安全嘅普通石頭，0.45 秒後變身噴射火箭從背後追撞！
+          case 'BACKSTAB_ROCK':
+            addEnt(worldX, { type: 'BACKSTAB_ROCK', y: this.groundY - 42, w: 44, h: 42 });
+            break;
+
+          // 5. 【鏡像左右顛倒領域】整個世界左右鏡像反轉！
+          case 'MIRROR_REALM':
+            addEnt(worldX, { type: 'MIRROR_ZONE', y: this.groundY - 280, w: 460, h: 280 });
+            addEnt(worldX + 200, { type: 'HELL_PILLAR', y: this.groundY - 58, w: 36, h: 58, subtype: 'NORMAL' });
+            break;
+
+          // 6. 【縮小變微塵】食到「超補血大漢堡」，縮細到 10 像素跳躍力極低，連細石仔都要二段跳！
+          case 'TINY_BURGER':
+            addEnt(worldX, { type: 'TINY_BURGER', y: this.groundY - 115, w: 42, h: 38 });
+            addEnt(worldX + 240, { type: 'TINY_PEBBLE', y: this.groundY - 26, w: 32, h: 26 });
+            addEnt(worldX + 440, { type: 'TINY_PEBBLE', y: this.groundY - 30, w: 36, h: 30 });
+            break;
+
+          // 7. 【隱形地板（只靠鬼火閃爍提示）】成段路無地板，只有每 0.8 秒閃一下嘅鬼火標記落腳點！
+          case 'INVISIBLE_BRIDGE':
+            addEnt(worldX, { type: 'ABYSS_GAP', y: this.groundY, w: 440, h: 160 });
+            addEnt(worldX + 110, { type: 'WISP_PLATFORM', y: this.groundY - 65, w: 85, h: 18 });
+            addEnt(worldX + 275, { type: 'WISP_PLATFORM', y: this.groundY - 110, w: 85, h: 18 });
+            break;
+
+          // 8. 【假 Checkpoint 炸彈】寫住 CP-?? 嘅檢查點旗幟，一掂到倒數 0.4 秒原地核爆！
+          case 'FAKE_CP_BOMB':
+            addEnt(worldX, { type: 'FAKE_CP_BOMB', y: this.groundY - 94, w: 34, h: 94 });
+            break;
+
+          // 9A. 【時間慢動作沙漏】突然 0.35 倍慢動作，令玩家提早按跳跌落刺坑！
+          case 'TIME_SLOW_TRAP':
+            addEnt(worldX, { type: 'TIME_HOURGLASS', y: this.groundY - 110, w: 36, h: 42, scale: 0.38 });
+            addEnt(worldX + 210, { type: 'SPIKE', y: this.groundY - 40, w: 110, h: 40 });
+            break;
+
+          // 9B. 【時間超音速沙漏】突然 2.1 倍超音速狂飆！
+          case 'TIME_FAST_TRAP':
+            addEnt(worldX, { type: 'TIME_HOURGLASS', y: this.groundY - 110, w: 36, h: 42, scale: 1.95 });
+            addEnt(worldX + 340, { type: 'HELL_PILLAR', y: this.groundY - 56, w: 36, h: 56, subtype: 'NORMAL' });
+            break;
+
+          // 10. 【彈簧變彈射上太空】踩上去直接射穿天花板飛出大氣層墜亡！（正確做法：喺彈簧前直接跳過！）
+          case 'SPACE_SPRING_TRAP':
+            addEnt(worldX, { type: 'SPACE_SPRING', y: this.groundY - 26, w: 48, h: 26 });
+            addEnt(worldX + 65, { type: 'SPIKE', y: this.groundY - 38, w: 72, h: 38 });
+            break;
+
+          // 11. 【假地刺（軟綿綿海綿刺）+ 爆炸浮空平台】恐怖血紅地刺其實係海綿無傷害，反而上面浮空平台一踩就爆！
+          case 'SPONGE_SPIKE_TRAP':
+            addEnt(worldX, { type: 'SPONGE_SPIKE', y: this.groundY - 46, w: 170, h: 46 });
+            addEnt(worldX + 35, { type: 'BOMB_PLATFORM', y: this.groundY - 125, w: 100, h: 22 });
+            break;
+
+          // 12. 【偷走跳躍鍵】地獄小偷鬼搶走「跳躍」能力 1.2 秒，期間只能用「蹲下」滑過低矮激光陣！
+          case 'STEAL_JUMP_TRAP':
+
+            addEnt(worldX, { type: 'THIEF_TRIGGER', y: this.groundY - 220, w: 40, h: 220 });
+            addEnt(worldX + 240, { type: 'LOW_LASER_BAR', y: this.groundY - 82, w: 190, h: 42 });
+            break;
+
+          // 13. 【會跟蹤嘅 UFO 吸星聚光燈】綠色光束照中會將地獄貓吸上半空撞天花板地刺！
+          case 'UFO_TRACTOR_BEAM':
+            addEnt(worldX, { type: 'CEILING_SPIKE', y: this.ceilingY, w: 220, h: 40 });
+            addEnt(worldX + 40, { type: 'TRACTOR_UFO', y: 155, w: 76, h: 34 });
+            break;
+
+          // 14. 【地面波浪地震】整條地面變成正弦波浪劇烈上下起伏！
+          case 'EARTHQUAKE_WAVE':
+            addEnt(worldX, { type: 'QUAKE_TRIGGER', y: this.groundY - 200, w: 40, h: 200 });
+            addEnt(worldX + 240, { type: 'HELL_PILLAR', y: this.groundY - 56, w: 36, h: 56, subtype: 'NORMAL' });
+            break;
+
+          // 15. 【假寶箱怪】閃閃發光嘅黃金寶箱，靠近會張開血盆大口高速衝過嚟咬人！
+          case 'MIMIC_CHEST':
+            addEnt(worldX, { type: 'MIMIC_CHEST', y: this.groundY - 48, w: 52, h: 48, triggerDist: 250 });
+            break;
+
+          // 16. 【雙重隱形磚連環陰人】第一塊頂落嚟，第二塊生喺更前面專陰背板玩家！
+          case 'DOUBLE_HIDDEN_BLOCK':
+            addEnt(worldX, { type: 'SPIKE', y: this.groundY - 40, w: 120, h: 40 });
+            addEnt(worldX - 20, { type: 'HIDDEN_BLOCK', y: this.groundY - 188, w: 46, h: 46 });
+            addEnt(worldX + 75, { type: 'HIDDEN_BLOCK', y: this.groundY - 188, w: 46, h: 46 });
+            break;
+
+          // 17. 【反向操作毒魚骨】食咗之後跳變蹲、蹲變跳！
+          case 'REVERSE_BONE':
+            addEnt(worldX, { type: 'CONFUSE_BONE', y: this.groundY - 42, w: 40, h: 40 });
+            addEnt(worldX + 240, { type: 'HELL_PILLAR', y: this.groundY - 58, w: 38, h: 58, subtype: 'NORMAL' });
+            break;
+
+          // 18. 【會跳起避開玩家嘅狡猾尖刺柱】玩家一跳，佢竟然跟住跳起喺半空撞你！
+          case 'COPYCAT_PILLAR':
+            addEnt(worldX, { type: 'HELL_PILLAR', y: this.groundY - 58, w: 38, h: 58, subtype: 'COPY_JUMP', triggerDist: 290 });
+            break;
+
+          // 19. 【垂直極速插水電梯】踩上去唔係升起，而係極速向下插水跌落深淵！
+          case 'DROP_ELEVATOR':
+            addEnt(worldX, { type: 'ABYSS_GAP', y: this.groundY, w: 220, h: 160 });
+            addEnt(worldX + 35, { type: 'DROP_ELEVATOR', y: this.groundY - 12, w: 110, h: 20 });
+            break;
+
+          // 20. 【增肥黃金魚乾 + 脆弱骨橋】
+          case 'FAT_FISH_BRIDGE':
+            addEnt(worldX, { type: 'FAKE_FISH', y: this.groundY - 120, w: 42, h: 36 });
+            addEnt(worldX + 200, { type: 'WEAK_BRIDGE', y: this.groundY, w: 210, h: 160 });
+            break;
+
+          // 21. 【180度世界顛倒結界】
+          case 'UPSIDE_DOWN_REALM':
+            addEnt(worldX, { type: 'UPSIDE_DOWN_ZONE', y: this.groundY - 280, w: 440, h: 280 });
+            addEnt(worldX + 190, { type: 'HELL_PILLAR', y: this.groundY - 56, w: 36, h: 56, subtype: 'NORMAL' });
+            break;
+        }
+      }
+
+      /**
+       * 為每一個 Checkpoint (CP-0 到 CP-50) 編排 3~4 種「完全唔重複」嘅反智陷阱組合！
+       */
+      generateCheckpointSegment(cpIdx, refStartDist) {
+        const segStart = cpIdx * this.cpSpacing;
+        const addEnt = (worldX, obj) => {
+          if (worldX < refStartDist - 80) return;
+          this.entities.push({
+            ...obj,
+            x: 190 + (worldX - this.distance),
+            triggered: false,
+            vx: obj.vx || 0,
+            vy: obj.vy || 0
+          });
+        };
+
+        // 放置 Checkpoint 存檔旗幟
+        if (cpIdx > 0 && cpIdx <= this.totalCheckpoints) {
+          addEnt(segStart, { type: 'CHECKPOINT', y: this.groundY - 92, w: 30, h: 92, cpIdx });
+        }
+
+        // 第 50 關終極壓軸：假通關大門 + 巨型地獄魔王追殺最後 100 米！
+        if (cpIdx === this.totalCheckpoints) {
+          addEnt(segStart + 320, { type: 'FAKE_FINAL_GATE', y: this.groundY - 180, w: 90, h: 180 });
+          addEnt(segStart + 680, { type: 'HELL_PILLAR', y: this.groundY - 56, w: 36, h: 56, subtype: 'NORMAL' });
+          addEnt(segStart + 1050, { type: 'SPONGE_SPIKE', y: this.groundY - 44, w: 140, h: 44 });
+          addEnt(segStart + 1480, { type: 'REAL_GOAL_FLAG', y: this.groundY - 210, w: 48, h: 210 });
+          return;
+        }
+
+        // 21 種高辨識度陷阱池，確保同一個 Checkpoint 內絕對抽中 3 個「完全唔同類型」嘅陷阱！
+        const ALL_PATTERNS = [
+          'FAKE_SAFE_SIGN',
+          'CEILING_GRAVITY_RUN',
+          'FAKE_CRASH_HAMMER',
+          'BACKSTAB_ROCK',
+          'MIRROR_REALM',
+          'TINY_BURGER',
+          'INVISIBLE_BRIDGE',
+          'FAKE_CP_BOMB',
+          'TIME_SLOW_TRAP',
+          'TIME_FAST_TRAP',
+          'SPACE_SPRING_TRAP',
+          'SPONGE_SPIKE_TRAP',
+          'STEAL_JUMP_TRAP',
+          'UFO_TRACTOR_BEAM',
+          'EARTHQUAKE_WAVE',
+          'MIMIC_CHEST',
+          'DOUBLE_HIDDEN_BLOCK',
+          'REVERSE_BONE',
+          'COPYCAT_PILLAR',
+          'DROP_ELEVATOR',
+          'FAT_FISH_BRIDGE',
+          'UPSIDE_DOWN_REALM'
+        ];
+
+        const rng = seededRng(cpIdx * 251 + 19);
+        // 洗牌演算法選出 3 個絕不重複的陷阱
+        const pool = [...ALL_PATTERNS];
+        // 針對前幾個 Checkpoint 優先展示最有代表性的反智機關
+        let chosen = [];
+        if (cpIdx === 0) {
+          chosen = ['FAKE_SAFE_SIGN', 'SPONGE_SPIKE_TRAP', 'BACKSTAB_ROCK'];
+        } else if (cpIdx === 1) {
+          chosen = ['SPACE_SPRING_TRAP', 'FAKE_CRASH_HAMMER', 'FAKE_CP_BOMB'];
+        } else if (cpIdx === 2) {
+          chosen = ['STEAL_JUMP_TRAP', 'TINY_BURGER', 'MIMIC_CHEST'];
+        } else if (cpIdx === 3) {
+          chosen = ['CEILING_GRAVITY_RUN', 'INVISIBLE_BRIDGE', 'TIME_SLOW_TRAP'];
+        } else {
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+          }
+          chosen = pool.slice(0, 3);
+        }
+
+        const offsets = [340, 920, 1480];
+        chosen.forEach((pat, idx) => {
+          this.spawnTrapPattern(pat, segStart + offsets[idx], addEnt);
+        });
+      }
+
+      spawnEndlessChunk() {
+        const ALL_PATTERNS = [
+          'FAKE_SAFE_SIGN', 'CEILING_GRAVITY_RUN', 'FAKE_CRASH_HAMMER', 'BACKSTAB_ROCK',
+          'MIRROR_REALM', 'TINY_BURGER', 'INVISIBLE_BRIDGE', 'FAKE_CP_BOMB',
+          'TIME_SLOW_TRAP', 'TIME_FAST_TRAP', 'SPACE_SPRING_TRAP', 'SPONGE_SPIKE_TRAP',
+          'STEAL_JUMP_TRAP', 'UFO_TRACTOR_BEAM', 'EARTHQUAKE_WAVE', 'MIMIC_CHEST',
+          'DOUBLE_HIDDEN_BLOCK', 'REVERSE_BONE', 'COPYCAT_PILLAR', 'DROP_ELEVATOR',
+          'FAT_FISH_BRIDGE', 'UPSIDE_DOWN_REALM'
+        ];
+        const pat = ALL_PATTERNS[Math.floor(Math.random() * ALL_PATTERNS.length)];
+        const addEnt = (wx, obj) => {
+          this.entities.push({
+            ...obj,
+            x: wx,
+            triggered: false,
+            vx: obj.vx || 0,
+            vy: obj.vy || 0
+          });
+        };
+        this.spawnTrapPattern(pat, this.nextSpawnX, addEnt);
+        this.nextSpawnX += 640;
+      }
+
+      showToast(text, duration = 2400) {
+        const el = document.getElementById('troll-toast');
+        el.textContent = text;
+        el.classList.add('show');
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+      }
+
+      triggerShake(intensity = 12, duration = 0.25) {
+        this.shakeIntensity = intensity;
+        this.shakeTimer = duration;
+      }
+
+      spawnParticles(x, y, color, count = 14, speed = 260) {
+        for (let i = 0; i < count; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (0.3 + Math.random() * 0.8) * speed;
+          this.particles.push({
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 80,
+            size: 4 + Math.random() * 6,
+            life: 0.45 + Math.random() * 0.4,
+            maxLife: 0.85,
+            color
+          });
+        }
+      }
+
+      openCrashDialog() {
+        this.crashTrapActive = true;
+        this.crashTrapTimer = 2.6;
+        document.getElementById('fake-crash-dialog').style.display = 'flex';
+        HellAudio.trollLaugh();
+        this.showToast('⚠️ 系統彈出錯誤視窗！千祈唔好撳確定，直接跳過去！', 2600);
+      }
+
+      closeCrashDialog(spawnHammer = false) {
+        this.crashTrapActive = false;
+        document.getElementById('fake-crash-dialog').style.display = 'none';
+        if (spawnHammer && this.state === 'PLAYING') {
+          this.entities.push({
+            type: 'GIANT_HAMMER',
+            x: this.player.x - 15,
+            y: -140,
+            w: 90,
+            h: 110,
+            vy: 1350,
+            triggered: true
+          });
+          HellAudio.trollLaugh();
+          this.showToast('🔨 叫咗你唔好信系統彈窗啦！接鎚！');
+        }
+      }
+
+      handleJumpInput() {
+        HellAudio.unlock();
+        if (this.state === 'MENU' || this.state === 'DEAD' || this.state === 'VICTORY') {
+          this.startGame();
+          return;
+        }
+
+        // 陷阱 #12：跳躍鍵被地獄小偷鬼偷走了！
+        if (this.jumpStolenTimer > 0) {
+          HellAudio.squish();
+          this.showToast('👻 跳躍鍵仲喺小偷鬼手上面！快啲用「蹲下」滑過去！', 1400);
+          return;
+        }
+
+        // 陷阱 #17：反向操作毒魚骨（按跳變蹲）
+        if (this.reverseControls) {
+          this.setDuck(true);
+          setTimeout(() => this.setDuck(false), 320);
+          return;
+        }
+
+        const p = this.player;
+        if (p.jumpsLeft > 0) {
+          const isDouble = !p.grounded;
+          // 縮細變微塵狀態下跳躍力大幅削弱，需要靠二段跳先勉強過石仔！
+          const baseJumpVel = p.sizeMode === 'TINY' ? -430 : -740;
+          const doubleJumpVel = p.sizeMode === 'TINY' ? -410 : -665;
+          const dir = this.ceilingGravity ? -1 : 1; // 天花板倒立時向下跳！
+
+          p.vy = (isDouble ? doubleJumpVel : baseJumpVel) * dir;
+          p.grounded = false;
+          p.jumpsLeft--;
+          p.ducking = false;
+          p.h = p.sizeMode === 'GIANT' ? 110 : (p.sizeMode === 'TINY' ? 16 : 64);
+          p.scaleX = 0.78;
+          p.scaleY = 1.26;
+          HellAudio.jump(isDouble);
+          this.spawnParticles(p.x + p.w * 0.5, this.ceilingGravity ? p.y : p.y + p.h, [0.98, 0.45, 0.25, 0.85], 8, 140);
+
+          // 通知場上的「學人精尖刺柱」一齊跳起！
+          for (const ent of this.entities) {
+            if (ent.type === 'HELL_PILLAR' && ent.subtype === 'COPY_JUMP' && ent.x > p.x && ent.x - p.x < 360 && ent.y >= this.groundY - ent.h - 2) {
+              ent.vy = -660;
+              ent.triggered = true;
+              this.showToast('😈 尖刺柱：你跳？我都跟住跳！');
+            }
+          }
+        }
+      }
+
+      setDuck(isDown) {
+        HellAudio.unlock();
+        if (this.state !== 'PLAYING') return;
+
+        if (this.reverseControls && isDown) {
+          const p = this.player;
+          if (p.jumpsLeft > 0 && this.jumpStolenTimer <= 0) {
+            p.vy = -725;
+            p.grounded = false;
+            p.jumpsLeft--;
+            HellAudio.jump(false);
+          }
+          return;
+        }
+
+        const p = this.player;
+        const normalH = p.sizeMode === 'GIANT' ? 110 : (p.sizeMode === 'TINY' ? 16 : 64);
+        const duckH = p.sizeMode === 'GIANT' ? 64 : (p.sizeMode === 'TINY' ? 10 : 34);
+
+        if (isDown) {
+          if (!p.grounded) {
+            p.vy = this.ceilingGravity ? Math.min(p.vy, -960) : Math.max(p.vy, 980);
+          } else if (!p.ducking) {
+            p.ducking = true;
+            const oldH = p.h;
+            p.h = duckH;
+            if (!this.ceilingGravity) p.y += (oldH - p.h);
+            p.scaleX = 1.26;
+            p.scaleY = 0.70;
+          }
+        } else if (p.ducking) {
+          p.ducking = false;
+          const oldH = p.h;
+          p.h = normalH;
+          if (!this.ceilingGravity) p.y -= (p.h - oldH);
+        }
+      }
+
+      openCheckpointModal() {
+        this.state = 'MENU';
+        this.closeCrashDialog(false);
+        this.renderCheckpointGrid();
+        document.getElementById('modal-title').textContent = '地獄貓 · 煉獄傳送門';
+        document.getElementById('modal-desc').innerHTML =
+          `總計 <b>50 個 Checkpoints</b>，目前最高解鎖：<b>CP-${this.maxUnlockedCp}</b>。<br>` +
+          `點擊下方任何已解鎖嘅檢查點即可傳送，體驗唔同章節嘅反智陷阱！`;
+        document.getElementById('death-box').style.display = 'none';
+        document.getElementById('btn-start').textContent = `從 CP-${this.checkpointIndex} 出發！`;
+        document.getElementById('overlay-modal').classList.remove('hidden');
+      }
+
+      startGame() {
+        HellAudio.unlock();
+        document.getElementById('overlay-modal').classList.add('hidden');
+        this.state = 'PLAYING';
+        const startDist = this.mode === 'CAMPAIGN' ? this.checkpoints[this.checkpointIndex] : 0;
+        this.resetPlayer(startDist);
+      }
+
+      killPlayer(causeText) {
+        if (this.state !== 'PLAYING') return;
+        this.state = 'DEAD';
+        this.deaths++;
+        this.iq -= (15 + Math.floor(Math.random() * 25));
+        this.closeCrashDialog(false);
+        this.saveProgress();
+
+        HellAudio.die();
+        this.triggerShake(18, 0.45);
+        this.spawnParticles(this.player.x + this.player.w * 0.5, this.player.y + this.player.h * 0.5, [0.96, 0.25, 0.37, 1], 28, 360);
+        this.spawnParticles(this.player.x + this.player.w * 0.5, this.player.y + this.player.h * 0.5, [0.98, 0.65, 0.15, 1], 18, 300);
+
+        this.updateHUD();
+        this.renderCheckpointGrid();
+
+        const quote = TROLL_QUOTES[Math.floor(Math.random() * TROLL_QUOTES.length)];
+        document.getElementById('modal-title').textContent = '地獄貓慘死當場！';
+        document.getElementById('modal-desc').innerHTML =
+          `已前進 <b>${Math.floor(this.distance / 10)} m</b>｜當前存檔點：<b>CP-${this.checkpointIndex} / 50</b>｜智商：<b>${this.iq}</b>`;
+        document.getElementById('death-box').style.display = 'block';
+        document.getElementById('death-cause').textContent = `💀 死因：${causeText}`;
+        document.getElementById('death-quote').textContent = quote;
+        document.getElementById('btn-start').textContent = `唔服氣！從 CP-${this.checkpointIndex} 再戰 (R)`;
+
+        setTimeout(() => {
+          if (this.state === 'DEAD') {
+            document.getElementById('overlay-modal').classList.remove('hidden');
+          }
+        }, 480);
+      }
+
+      triggerVictory() {
+        this.state = 'VICTORY';
+        this.maxUnlockedCp = 50;
+        this.checkpointIndex = 50;
+        this.saveProgress();
+        this.renderCheckpointGrid();
+        HellAudio.powerup();
+
+        document.getElementById('modal-title').textContent = '👑 制霸 50 關！反智貓王誕生！';
+        document.getElementById('modal-desc').innerHTML =
+          `你竟然喺地獄魔王追殺下逃出生天，打通全部 <b>50 個 Checkpoints</b>！<br>` +
+          `總計中伏 <b>${this.deaths}</b> 次，最終貓靈智商為 <b>${this.iq}</b>。`;
+        document.getElementById('death-box').style.display = 'none';
+        document.getElementById('btn-start').textContent = '從 CP-0 重新輪迴受苦';
+        this.checkpointIndex = 0;
+        document.getElementById('overlay-modal').classList.remove('hidden');
+      }
+
+      updateHUD() {
+        const maxDist = this.checkpoints[this.totalCheckpoints];
+        const pct = Math.min(100, Math.floor((this.distance / maxDist) * 100));
+        document.getElementById('hud-dist').textContent = `${Math.floor(this.distance / 10)} m (${pct}%)`;
+
+        const iqEl = document.getElementById('hud-iq');
+        iqEl.textContent = this.iq;
+        iqEl.classList.toggle('iq-neg', this.iq < 0);
+
+        document.getElementById('hud-deaths').textContent = this.deaths;
+        document.getElementById('hud-cp').textContent =
+          this.mode === 'CAMPAIGN' ? `CP-${this.checkpointIndex} / 50` : '無盡煉獄';
+
+        const chapIdx = this.getCurrentChapterIndex();
+        document.getElementById('hud-chapter').textContent = CHAPTER_THEMES[chapIdx].name;
+      }
+
+      update(rawDt) {
+        this.time += rawDt;
+
+        if (this.shakeTimer > 0) {
+          this.shakeTimer -= rawDt;
+        }
+
+        // 時間沙漏特效計時 (陷阱 #9)
+        if (this.timeScaleTimer > 0) {
+          this.timeScaleTimer -= rawDt;
+          if (this.timeScaleTimer <= 0) {
+            this.timeScale = 1.0;
+            this.showToast('⏳ 時空流速回復正常！');
+          }
+        }
+
+        // 跳躍鍵被偷走計時 (陷阱 #12)
+        if (this.jumpStolenTimer > 0) {
+          this.jumpStolenTimer -= rawDt;
+          if (this.jumpStolenTimer <= 0) {
+            document.getElementById('touch-jump').classList.remove('stolen');
+            document.getElementById('jump-btn-label').textContent = '跳躍×2';
+            this.thiefGhost = null;
+            this.showToast('✨ 跳躍鍵搶返嚟啦！');
+          }
+        }
+
+        // 假系統錯誤彈窗計時 (陷阱 #3)
+        if (this.crashTrapActive) {
+          this.crashTrapTimer -= rawDt;
+          if (this.crashTrapTimer <= 0) {
+            // 玩家完全唔理個彈窗，彈窗直接變成巨鎚砸落嚟！
+            this.closeCrashDialog(true);
+          }
+        }
+
+        if (this.waveGroundTimer > 0) {
+          this.waveGroundTimer -= rawDt;
+        }
+
+        for (const c of this.clouds) {
+          c.x -= c.speed * rawDt;
+          if (c.x + c.w < -50) c.x = this.renderer.virtualWidth + 80;
+        }
+
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const pt = this.particles[i];
+          pt.x += pt.vx * rawDt;
+          pt.y += pt.vy * rawDt;
+          pt.vy += 680 * rawDt;
+          pt.life -= rawDt;
+          if (pt.life <= 0) this.particles.splice(i, 1);
+        }
+
+        if (this.state !== 'PLAYING') return;
+
+        // 應用時間沙漏倍速 (慢動作 0.38x 或超音速 1.95x)
+        const dt = rawDt * this.timeScale;
+
+        const chapIdx = this.getCurrentChapterIndex();
+        this.currentSpeed = this.baseSpeed + chapIdx * 24;
+        this.distance += this.currentSpeed * dt;
+        this.updateHUD();
+
+        // 動態串流生成後續 Checkpoints
+        if (this.mode === 'CAMPAIGN') {
+          const targetCp = Math.min(this.totalCheckpoints, Math.floor(this.distance / this.cpSpacing) + 2);
+          while (this.generatedUpToCp < targetCp) {
+            this.generatedUpToCp++;
+            this.generateCheckpointSegment(this.generatedUpToCp, this.distance);
+          }
+        } else {
+          this.nextSpawnX -= this.currentSpeed * dt;
+          if (this.nextSpawnX < this.renderer.virtualWidth + 300) {
+            this.spawnEndlessChunk();
+          }
+        }
+
+        for (const m of this.mountains) {
+          m.x -= this.currentSpeed * 0.18 * dt;
+          if (m.x + m.w < -100) m.x += this.mountains.length * 260;
+        }
+
+        // 第 50 關終極地獄魔王追殺更新 (陷阱 #20)
+        if (this.finalBossChase) {
+          this.bossX += (this.currentSpeed * 0.24) * dt;
+          if (this.bossX > this.player.x - 45) {
+            this.bossX = this.player.x - 45;
+          }
+        }
+
+        // 玩家物理運算 (呼叫 WebAssembly 二進制模組)
+        const p = this.player;
+        p.runCycle += dt * (this.currentSpeed * 0.045);
+        p.scaleX += (1 - p.scaleX) * Math.min(1, rawDt * 14);
+        p.scaleY += (1 - p.scaleY) * Math.min(1, rawDt * 14);
+
+        if (p.sizeTimer > 0) {
+          p.sizeTimer -= rawDt;
+          if (p.sizeTimer <= 0) {
+            p.sizeMode = 'NORMAL';
+            p.w = 44;
+            p.h = p.ducking ? 34 : 64;
+            p.y = Math.min(p.y, this.groundY - p.h);
+            this.showToast('體型變身藥效已過，回復正常貓身！');
+          }
+        }
+
+        const baseGrav = this.ceilingGravity ? -2100 : 2150;
+        p.y = WasmPhysicsEngine.stepY(p.y, p.vy, baseGrav, dt);
+        p.vy = WasmPhysicsEngine.stepVy(p.vy, baseGrav, dt);
+
+        // 檢查腳下是否為深淵缺口或已崩塌地板
+        let overPit = false;
+        let onSolidPlatform = false;
+
+        for (const ent of this.entities) {
+          if (ent.type === 'ABYSS_GAP' || ((ent.type === 'FAKE_FLOOR' || ent.type === 'WEAK_BRIDGE') && ent.triggered)) {
+            if (p.x + p.w * 0.6 > ent.x && p.x + p.w * 0.4 < ent.x + ent.w) {
+              overPit = true;
+            }
+          }
+          // 鬼火隱形平台與垂直電梯支撐判定
+          if ((ent.type === 'WISP_PLATFORM' || ent.type === 'DROP_ELEVATOR') && p.vy >= 0) {
+            if (p.x + p.w * 0.7 > ent.x && p.x + p.w * 0.3 < ent.x + ent.w) {
+              if (p.y + p.h >= ent.y && p.y + p.h <= ent.y + 24) {
+                p.y = ent.y - p.h;
+                p.vy = 0;
+                p.grounded = true;
+                p.jumpsLeft = 2;
+                onSolidPlatform = true;
+                if (ent.type === 'DROP_ELEVATOR' && !ent.triggered) {
+                  ent.triggered = true;
+                  HellAudio.trollLaugh();
+                  this.showToast('🛗 呢部係地獄極速插水電梯！拜拜～');
+                }
+              }
+            }
+          }
+        }
+
+        const localGroundY = this.getDynamicGroundY(p.x + p.w * 0.5);
+
+        if (this.ceilingGravity) {
+          // 貼住天花板跑！
+          if (p.y <= this.ceilingY && p.vy <= 0) {
+            p.y = this.ceilingY;
+            p.vy = 0;
+            p.grounded = true;
+            p.jumpsLeft = 2;
+          }
+          if (p.y < -60) {
+            this.killPlayer('飛出大氣層變咗太空貓屍！');
+            return;
+          }
+        } else if (!onSolidPlatform) {
+          if (!overPit && p.y + p.h >= localGroundY && p.vy >= 0) {
+            if (!p.grounded) {
+              p.scaleX = 1.24;
+              p.scaleY = 0.78;
+              this.spawnParticles(p.x + p.w * 0.5, localGroundY, [0.95, 0.45, 0.3, 0.6], 5, 90);
+            }
+            p.y = localGroundY - p.h;
+            p.vy = 0;
+            p.grounded = true;
+            p.jumpsLeft = 2;
+          } else if (overPit) {
+            p.grounded = false;
+          }
+        }
+
+        if (p.y > this.renderer.virtualHeight + 45) {
+          this.killPlayer('跌落十八層無底深淵！');
+          return;
+        }
+        if (p.y < -80) {
+          this.killPlayer('被彈簧直接射穿大氣層撞毀衛星！');
+          return;
+        }
+
+        this.updateEntities(dt, rawDt);
+      }
+
+      updateEntities(dt, rawDt) {
+        const p = this.player;
+        const pad = p.sizeMode === 'TINY' ? 2 : 6;
+        const px = p.x + pad;
+        const py = p.y + pad;
+        const pw = Math.max(6, p.w - pad * 2);
+        const ph = Math.max(6, p.h - pad * 2);
+
+        let inUpsideDownZone = false;
+        let inMirrorZone = false;
+
+        for (let i = this.entities.length - 1; i >= 0; i--) {
+          const ent = this.entities[i];
+          ent.x -= this.currentSpeed * dt;
+
+          const distToPlayer = ent.x - (p.x + p.w);
+
+          // 1. 【假安全提示牌】一靠近就飛起變成迴旋斬首飛刀！
+          if (ent.type === 'FAKE_SAFE_SIGN') {
+            if (!ent.triggered && distToPlayer < ent.triggerDist) {
+              ent.triggered = true;
+              ent.vx = -420;
+              ent.vy = -120;
+              HellAudio.trollLaugh();
+              this.showToast('🪧 路牌：「寫住『安全』你真係信？斬死你！」');
+            }
+            if (ent.triggered) {
+              ent.x += ent.vx * dt;
+              ent.y += ent.vy * dt;
+              ent.vy += 320 * dt;
+            }
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 6, ent.y + 6, ent.w - 12, ent.h - 12)) {
+              this.killPlayer('太單純相信「前面安全」路牌，被路牌親自斬首！');
+              return;
+            }
+          }
+
+          // 2. 【反向重力跳板】踩中即刻反轉重力飛上天花板！
+          else if (ent.type === 'GRAV_FLIP_PAD') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y - 8, ent.w, ent.h + 16)) {
+              ent.triggered = true;
+              this.ceilingGravity = ent.toCeiling;
+              p.grounded = false;
+              p.vy = ent.toCeiling ? -680 : 680;
+              HellAudio.boing();
+              this.showToast(ent.toCeiling ? '🙃 重力反轉！貼住天花板跑啦！' : '⬇️ 重力恢復正常！');
+            }
+          }
+
+          // 3. 【假系統錯誤彈窗觸發器 + 巨型鐵鎚】
+          else if (ent.type === 'CRASH_TRIGGER') {
+            if (!ent.triggered && p.x + p.w >= ent.x) {
+              ent.triggered = true;
+              this.openCrashDialog();
+            }
+          }
+          else if (ent.type === 'GIANT_HAMMER') {
+            ent.x = p.x - 15; // 鎖定玩家頭頂砸落！
+            ent.y += ent.vy * rawDt;
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 8, ent.y + 8, ent.w - 16, ent.h - 12)) {
+              this.killPlayer('手多多理會「假系統錯誤彈窗」，被巨型鐵鎚砸成貓餅！');
+              return;
+            }
+          }
+
+          // 4. 【回頭殺尖刺石頭】過咗去以為安全，0.4 秒後變噴射火箭從背後追撞！
+          else if (ent.type === 'BACKSTAB_ROCK') {
+            if (!ent.triggered && ent.x + ent.w < p.x - 35) {
+              ent.triggered = true;
+              ent.backstabTimer = 0.35;
+              HellAudio.trollLaugh();
+              this.showToast('🚀 背後傳來引擎聲：塊石頭調頭追殺你啦！');
+            }
+            if (ent.triggered) {
+              if (ent.backstabTimer > 0) {
+                ent.backstabTimer -= dt;
+              } else {
+                ent.x += (this.currentSpeed + 540) * dt;
+                this.spawnParticles(ent.x, ent.y + 20, [1, 0.55, 0.1, 0.9], 1, 80);
+              }
+            }
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 4, ent.y + 4, ent.w - 8, ent.h - 6)) {
+              this.killPlayer('以為跳過就安全，被回頭殺火箭石頭從後背穿心！');
+              return;
+            }
+          }
+
+          // 5. 【鏡像左右顛倒領域】
+          else if (ent.type === 'MIRROR_ZONE') {
+            if (p.x + p.w > ent.x && p.x < ent.x + ent.w) inMirrorZone = true;
+          }
+
+          // 6. 【縮小變微塵漢堡 + 致命細石仔】
+          else if (ent.type === 'TINY_BURGER') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              ent.triggered = true;
+              p.sizeMode = 'TINY';
+              p.sizeTimer = 6.5;
+              p.w = 12;
+              p.h = 16;
+              p.y = this.groundY - p.h;
+              HellAudio.squish();
+              this.showToast('🍔 食咗縮水漢堡！變咗 12 像素微塵貓！(要用二段跳過石仔)');
+            }
+          }
+          else if (ent.type === 'TINY_PEBBLE') {
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 3, ent.y + 3, ent.w - 6, ent.h - 4)) {
+              this.killPlayer('縮細之後連一粒路邊細石仔都跳唔過，被絆倒摔死！');
+              return;
+            }
+          }
+
+          // 7. 【隱形鬼火平台】每隔 0.85 秒閃現一次提示位置
+          else if (ent.type === 'WISP_PLATFORM') {
+            ent.glow = Math.sin(this.time * 7.5) > 0.35;
+          }
+
+          // 8. 【假 Checkpoint 核爆旗】
+          else if (ent.type === 'FAKE_CP_BOMB') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x - 10, ent.y, ent.w + 20, ent.h)) {
+              ent.triggered = true;
+              ent.bombTimer = 0.38;
+              HellAudio.trollLaugh();
+              this.showToast('💣 假存檔旗啟動自爆倒數：3...2...1...！');
+            }
+            if (ent.triggered && ent.bombTimer > 0) {
+              ent.bombTimer -= dt;
+              if (ent.bombTimer <= 0) {
+                this.triggerShake(22, 0.45);
+                this.spawnParticles(ent.x + 17, ent.y + 45, [1.0, 0.4, 0.1, 1], 36, 420);
+                if (Math.abs((p.x + p.w * 0.5) - (ent.x + 17)) < 145) {
+                  this.killPlayer('太心急想存檔，被「假 Checkpoint 核彈」炸上西天！');
+                  return;
+                }
+              }
+            }
+          }
+
+          // 9. 【時間快慢沙漏】
+          else if (ent.type === 'TIME_HOURGLASS') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              ent.triggered = true;
+              this.timeScale = ent.scale;
+              this.timeScaleTimer = 3.2;
+              HellAudio.trollLaugh();
+              this.showToast(ent.scale < 1
+                ? '🐌 踩中慢動作沙漏！時間變慢 0.38 倍，千祈唔好提早按跳！'
+                : '⚡ 踩中超音速沙漏！時間加速 1.95 倍狂飆！');
+            }
+          }
+
+          // 10. 【彈射上太空彈簧】
+          else if (ent.type === 'SPACE_SPRING') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              ent.triggered = true;
+              p.vy = -1950; // 直接射出大氣層！
+              p.grounded = false;
+              HellAudio.boing();
+              this.showToast('🚀 彈簧：「送你免費上太空單程機票！」');
+            }
+          }
+
+          // 11. 【海綿假地刺 + 爆炸浮空平台】
+          else if (ent.type === 'SPONGE_SPIKE') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 8, ent.y + 8, ent.w - 16, ent.h - 8)) {
+              ent.triggered = true;
+              HellAudio.squish();
+              this.showToast('🧽 呢排血紅地刺其實係海綿做嘅，軟綿綿好舒服！');
+            }
+          }
+          else if (ent.type === 'BOMB_PLATFORM') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y - 6, ent.w, ent.h + 10)) {
+              ent.triggered = true;
+              this.spawnParticles(ent.x + 50, ent.y + 10, [1, 0.3, 0.1, 1], 30, 360);
+              this.killPlayer('唔敢踩軟綿綿海綿刺，反而跳上「C4 炸彈平台」炸死自己！');
+              return;
+            }
+          }
+
+          // 12. 【偷走跳躍鍵】
+          else if (ent.type === 'THIEF_TRIGGER') {
+            if (!ent.triggered && p.x + p.w >= ent.x) {
+              ent.triggered = true;
+              this.jumpStolenTimer =1.2;
+              document.getElementById('touch-jump').classList.add('stolen');
+              document.getElementById('jump-btn-label').textContent = '被偷走!';
+              this.thiefGhost = { x: this.renderer.virtualWidth - 110, y: this.renderer.virtualHeight - 130 };
+              HellAudio.trollLaugh();
+              this.showToast('👻 地獄小偷鬼偷走咗你嘅「跳躍鍵」1 秒！快用「蹲下」滑過激光！', 1000);
+            }
+          }
+          else if (ent.type === 'LOW_LASER_BAR') {
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 4, ent.y + 4, ent.w - 8, ent.h - 8)) {
+              this.killPlayer('無咗跳躍鍵仲唔識按「蹲下」滑行，撞正低空激光腰斬！');
+              return;
+            }
+          }
+
+          // 13. 【UFO 吸星光束】
+          else if (ent.type === 'TRACTOR_UFO') {
+            const beamX = ent.x + ent.w * 0.5 - 24;
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, beamX, ent.y + ent.h, 48, this.groundY - ent.y)) {
+              p.vy = -640; // 被吸上半空撞天花板地刺！
+              p.grounded = false;
+              if (!ent.triggered) {
+                ent.triggered = true;
+                HellAudio.trollLaugh();
+                this.showToast('🛸 UFO 吸星光束啟動！快啲用「千斤墜 (按蹲下)」掙脫！');
+              }
+            }
+          }
+
+          // 14. 【地面海嘯波浪】
+          else if (ent.type === 'QUAKE_TRIGGER') {
+            if (!ent.triggered && p.x + p.w >= ent.x) {
+              ent.triggered = true;
+              this.waveGroundTimer = 4.5;
+              HellAudio.trollLaugh();
+              this.showToast('🌊 地獄大地震！地面變咗海浪上下搖晃！');
+            }
+          }
+
+          // 15. 【黃金寶箱怪】
+          else if (ent.type === 'MIMIC_CHEST') {
+            if (!ent.triggered && distToPlayer < ent.triggerDist) {
+              ent.triggered = true;
+              ent.vx = -340;
+              HellAudio.trollLaugh();
+              this.showToast('📦 寶箱：「開飯啦！多謝款待地獄貓！」');
+            }
+            if (ent.triggered) {
+              ent.x += ent.vx * dt;
+            }
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 5, ent.y + 5, ent.w - 10, ent.h - 6)) {
+              this.killPlayer('貪心想開黃金寶箱，被食人寶箱怪一啖吞落肚！');
+              return;
+            }
+          }
+
+          // 16. 【隱形詛咒磚塊】
+          else if (ent.type === 'HIDDEN_BLOCK') {
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              if (!ent.triggered) {
+                ent.triggered = true;
+                HellAudio.bonk();
+                this.triggerShake(8, 0.18);
+                this.showToast('咚！頭頂生咗一粒地獄大包！');
+                this.spawnParticles(ent.x + 23, ent.y + 46, [0.98, 0.75, 0.14, 1], 10, 180);
+              }
+              if (p.vy < 0 && py > ent.y + ent.h * 0.5) {
+                p.y = ent.y + ent.h;
+                p.vy = 340;
+              }
+            }
+          }
+
+          // 17. 【迷幻毒魚骨】
+          else if (ent.type === 'CONFUSE_BONE') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              ent.triggered = true;
+              this.reverseControls = true;
+              HellAudio.trollLaugh();
+              this.showToast('🦴 咬中迷幻毒魚骨！跳躍同蹲下按鍵已互換！', 3400);
+              setTimeout(() => { this.reverseControls = false; }, 5000);
+            }
+          }
+
+          // 18. 【地獄尖刺柱 (普通 / 學人精同跳)】
+          else if (ent.type === 'HELL_PILLAR') {
+            if (ent.subtype === 'COPY_JUMP' && ent.triggered) {
+              ent.y += ent.vy * dt;
+              ent.vy += 2150 * dt;
+              if (ent.y >= this.groundY - ent.h) {
+                ent.y = this.groundY - ent.h;
+                ent.vy = 0;
+              }
+            }
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 5, ent.y + 5, ent.w - 10, ent.h - 6)) {
+              this.killPlayer(ent.subtype === 'COPY_JUMP' ? '被識得跟住你一齊跳嘅學人精尖刺柱空中撞死！' : '一頭撞落地獄火柱，變咗串燒貓！');
+              return;
+            }
+          }
+
+          // 19. 【垂直極速插水電梯】
+          else if (ent.type === 'DROP_ELEVATOR' && ent.triggered) {
+            ent.vy += 1850 * dt;
+            ent.y += ent.vy * dt;
+          }
+
+          // 20. 【增肥魚乾 & 脆弱骨橋】
+          else if (ent.type === 'FAKE_FISH') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              ent.triggered = true;
+              HellAudio.powerup();
+              p.sizeMode = 'GIANT';
+              p.sizeTimer = 5.5;
+              p.w = 78;
+              p.h = 110;
+              p.y = this.groundY - p.h;
+              this.triggerShake(10, 0.25);
+              this.showToast('🐟 吞咗增肥黃金魚乾！變身超重巨貓！(小心腳下)');
+            }
+          }
+          else if (ent.type === 'WEAK_BRIDGE') {
+            if (!ent.triggered && p.x + p.w * 0.6 > ent.x && p.x < ent.x + ent.w && p.grounded && p.sizeMode === 'GIANT') {
+              ent.triggered = true;
+              HellAudio.bonk();
+              this.triggerShake(14, 0.3);
+              this.showToast('你食完魚乾太肥啦！踩冧咗條骨橋！');
+            }
+            if (ent.triggered) {
+              ent.vy += 1500 * dt;
+              ent.y += ent.vy * dt;
+            }
+          }
+
+          // 21. 【180度世界顛倒結界】
+          else if (ent.type === 'UPSIDE_DOWN_ZONE') {
+            if (p.x + p.w > ent.x && p.x < ent.x + ent.w) inUpsideDownZone = true;
+          }
+
+          // 22. 【致命地刺 & 天花板倒刺】
+          else if (ent.type === 'SPIKE' || ent.type === 'SPIKE_PIT' || ent.type === 'CEILING_SPIKE') {
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x + 6, ent.y + 6, ent.w - 12, ent.h - 8)) {
+              this.killPlayer(ent.type === 'CEILING_SPIKE' ? '一頭撞上天花板倒吊地刺！' : '踩中煉獄祖傳真地刺！');
+              return;
+            }
+          }
+
+          // 23. 【Checkpoint 存檔旗幟】
+          else if (ent.type === 'CHECKPOINT') {
+            if (!ent.triggered && p.x + p.w >= ent.x) {
+              ent.triggered = true;
+              this.checkpointIndex = ent.cpIdx;
+              if (ent.cpIdx > this.maxUnlockedCp) {
+                this.maxUnlockedCp = ent.cpIdx;
+              }
+              this.saveProgress();
+              HellAudio.checkpoint();
+              this.showToast(`🚩 真·存檔成功！抵達 CP-${ent.cpIdx} / 50！`);
+              this.spawnParticles(ent.x + 15, ent.y + 20, [0.98, 0.82, 0.2, 1], 22, 240);
+            }
+          }
+
+          // 24. 【第 50 關假通關大門 + 地獄魔王追殺】
+          else if (ent.type === 'FAKE_FINAL_GATE') {
+            if (!ent.triggered && WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              ent.triggered = true;
+              this.finalBossChase = true;
+              this.bossX = -180;
+              HellAudio.trollLaugh();
+              this.triggerShake(20, 0.5);
+              this.showToast('👹 假通關大門：「多謝惠顧！地獄魔王出籠，快逃命最後 100 米！」', 3500);
+            }
+          }
+
+          // 25. 【真正終點皇冠旗】
+          else if (ent.type === 'REAL_GOAL_FLAG') {
+            if (WasmPhysicsEngine.aabbHit(px, py, pw, ph, ent.x, ent.y, ent.w, ent.h)) {
+              this.triggerVictory();
+              return;
+            }
+          }
+
+          if (ent.x + ent.w < -520 && ent.type !== 'BACKSTAB_ROCK') {
+            this.entities.splice(i, 1);
+          }
+        }
+
+        const wrapper = document.getElementById('game-wrapper');
+        if (inUpsideDownZone !== this.upsideDown) {
+          this.upsideDown = inUpsideDownZone;
+          wrapper.classList.toggle('upside-down', this.upsideDown);
+          if (this.upsideDown) {
+            HellAudio.trollLaugh();
+            this.showToast('🙃 進入顛倒結界！個世界倒轉咗啦！');
+          }
+        }
+        if (inMirrorZone !== this.mirrorFlip) {
+          this.mirrorFlip = inMirrorZone;
+          wrapper.classList.toggle('mirror-flip', this.mirrorFlip);
+          if (this.mirrorFlip) {
+            HellAudio.trollLaugh();
+            this.showToast('🪞 進入鏡像結界！方向左右反轉！');
+          }
+        }
+      }
+
+      /**
+       * ========================================================================
+       * 渲染所有視覺元素 (WebGL 2.5D 幾何角色、特效、26 種奇葩機關)
+       * ========================================================================
+       */
+      render() {
+        const r = this.renderer;
+        const W = r.virtualWidth;
+        const H = r.virtualHeight;
+
+        const chapIdx = this.getCurrentChapterIndex();
+        const theme = CHAPTER_THEMES[chapIdx];
+        const chaosLevel = (this.upsideDown || this.mirrorFlip || this.reverseControls || this.ceilingGravity || this.finalBossChase) ? 1.0 : 0.0;
+
+        r.beginFrame(this.time, chaosLevel, theme);
+
+        // 1. 煉獄魔霧雲朵
+        for (const c of this.clouds) {
+          r.drawRect(c.x, c.y, c.w, 22, [1, 0.85, 0.9, 0.12]);
+          r.drawRect(c.x + 16, c.y - 11, c.w * 0.6, 15, [1, 0.85, 0.9, 0.18]);
+        }
+
+        // 2. 遠景煉獄尖峰山脈
+        for (const m of this.mountains) {
+          r.pushTri(
+            m.x, this.groundY,
+            m.x + m.w * 0.5, this.groundY - m.h,
+            m.x + m.w * 0.5, this.groundY,
+            0.12, 0.06, 0.18, 0.88
+          );
+          r.pushTri(
+            m.x + m.w * 0.5, this.groundY - m.h,
+            m.x + m.w, this.groundY,
+            m.x + m.w * 0.5, this.groundY,
+            0.07, 0.03, 0.11, 0.88
+          );
+        }
+
+        // 天花板軌道 (當處於反向重力區域或有天花板地刺時顯示)
+        r.drawRect(0, this.ceilingY - 12, W, 12, [0.45, 0.22, 0.68, 0.55]);
+
+        // 3. 地面主體 (支援波浪地震與深淵缺口)
+        this.renderGround(W, H, theme);
+
+        // 4. 所有反智陷阱與機關
+        for (const ent of this.entities) {
+          this.renderEntity(ent);
+        }
+
+        // 5. 繪製主角：地獄貓 (Hell Cat)
+        if (this.state !== 'DEAD') {
+          this.renderHellCat();
+        }
+
+        // 6. 繪製偷走跳躍鍵的小偷鬼 或 第 50 關巨型地獄魔王
+        if (this.jumpStolenTimer > 0 && this.thiefGhost) {
+          const gx = W - 95 + Math.sin(this.time * 9) * 14;
+          const gy = H - 115 + Math.cos(this.time * 7) * 10;
+          r.drawBevelBox(gx, gy, 44, 48, [0.65, 0.85, 1.0, 0.85], [1, 1, 1, 0.95], [0.3, 0.5, 0.8, 0.85], 3);
+          r.drawRect(gx + 10, gy + 14, 6, 6, [0.1, 0.1, 0.2, 1]);
+          r.drawRect(gx + 26, gy + 14, 6, 6, [0.1, 0.1, 0.2, 1]);
+        }
+
+        if (this.finalBossChase) {
+          const bx = this.bossX;
+          const by = this.groundY - 230 + Math.sin(this.time * 16) * 10;
+          r.drawBevelBox(bx, by, 150, 230, [0.55, 0.05, 0.15, 1], [0.95, 0.22, 0.35, 1], [0.25, 0.02, 0.06, 1], 5);
+          r.drawRect(bx + 95, by + 45, 28, 18, [1.0, 0.88, 0.15, 1]);
+          r.drawSpike(bx + 150, by + 95, 36, 40, true, [1, 0.95, 0.95, 1]);
+        }
+
+        // 7. 粒子特效
+        for (const pt of this.particles) {
+          const alpha = Math.max(0, pt.life / pt.maxLife);
+          const col = [pt.color[0], pt.color[1], pt.color[2], alpha];
+          r.drawRect(pt.x - pt.size * 0.5, pt.y - pt.size * 0.5, pt.size, pt.size, col);
+        }
+
+        let sx = 0, sy = 0;
+        if (this.shakeTimer > 0) {
+          sx = (Math.random() - 0.5) * 2 * this.shakeIntensity;
+          sy = (Math.random() - 0.5) * 2 * this.shakeIntensity;
+        }
+
+        r.flush(sx, sy);
+      }
+
+      renderGround(W, H, theme) {
+        const r = this.renderer;
+        const pits = this.entities
+          .filter(e => e.type === 'ABYSS_GAP' || ((e.type === 'FAKE_FLOOR' || e.type === 'WEAK_BRIDGE') && e.triggered))
+          .map(e => ({ start: e.x, end: e.x + e.w }))
+          .sort((a, b) => a.start - b.start);
+
+        if (this.waveGroundTimer > 0) {
+          // 波浪地震模式分段繪製起伏地面
+          const segW = 32;
+          for (let x = -32; x < W + 32; x += segW) {
+            const gy = this.getDynamicGroundY(x + segW * 0.5);
+            r.drawRect(x, gy, segW + 1, 9, theme.groundEdge);
+            r.drawRect(x, gy + 9, segW + 1, H - gy + 60, [0.06, 0.04, 0.09, 1]);
+          }
+          return;
+        }
+
+        let curX = -50;
+        const endX = W + 50;
+
+        const drawSegment = (x1, x2) => {
+          if (x2 <= x1) return;
+          const w = x2 - x1;
+          r.drawRect(x1, this.groundY, w, 9, theme.groundEdge);
+          r.drawRect(x1, this.groundY + 9, w, H - this.groundY, [0.06, 0.04, 0.09, 1], [0.12, 0.07, 0.16, 1]);
+          const step = 64;
+          const offset = this.distance % step;
+          for (let gx = Math.floor((x1 + offset) / step) * step - offset; gx < x2; gx += step) {
+            if (gx >= x1 && gx + 24 <= x2) {
+              r.drawRect(gx, this.groundY + 24, 24, 5, [0.95, 0.35, 0.25, 0.28]);
+            }
+          }
+        };
+
+        for (const pit of pits) {
+          drawSegment(curX, Math.min(endX, pit.start));
+          curX = Math.max(curX, pit.end);
+        }
+        drawSegment(curX, endX);
+      }
+
+      renderEntity(ent) {
+        const r = this.renderer;
+
+        if (ent.type === 'FAKE_SAFE_SIGN') {
+          // 綠色「安全提示牌」造型 (木柱 + 亮綠牌面 + 白色勾號)
+          r.drawRect(ent.x + 23, ent.y + 42, 8, 36, [0.55, 0.35, 0.18, 1]);
+          r.drawBevelBox(ent.x, ent.y, ent.w, 44, [0.10, 0.72, 0.38, 1], [0.35, 0.95, 0.60, 1], [0.05, 0.42, 0.20, 1], 3);
+          // 白色對勾 ✓
+          r.drawRect(ent.x + 14, ent.y + 22, 8, 5, [1, 1, 1, 1]);
+          r.drawRect(ent.x + 20, ent.y + 14, 18, 5, [1, 1, 1, 1]);
+        }
+
+        else if (ent.type === 'GRAV_FLIP_PAD') {
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.65, 0.22, 0.95, 1], [0.88, 0.55, 1.0, 1], [0.35, 0.08, 0.55, 1], 2);
+        }
+
+        else if (ent.type === 'GIANT_HAMMER') {
+          r.drawRect(ent.x + 38, ent.y - 90, 14, 95, [0.65, 0.42, 0.22, 1]);
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.88, 0.16, 0.28, 1], [1.0, 0.52, 0.58, 1], [0.45, 0.05, 0.12, 1], 4);
+        }
+
+        else if (ent.type === 'BACKSTAB_ROCK') {
+          const col = ent.triggered ? [0.98, 0.28, 0.15, 1] : [0.45, 0.46, 0.52, 1];
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, col, [0.75, 0.78, 0.84, 1], [0.22, 0.24, 0.28, 1], 3);
+          if (ent.triggered) {
+            // 背後噴出火箭尾翼與尖刺！
+            r.drawSpike(ent.x + ent.w, ent.y + 6, 18, 30, true, [1, 0.85, 0.2, 1]);
+          }
+        }
+
+        else if (ent.type === 'TINY_BURGER' && !ent.triggered) {
+          const bob = Math.sin(this.time * 7) * 5;
+          const by = ent.y + bob;
+          r.drawRect(ent.x + 4, by, 34, 11, [0.96, 0.68, 0.24, 1]);
+          r.drawRect(ent.x + 2, by + 11, 38, 6, [0.25, 0.85, 0.35, 1]);
+          r.drawRect(ent.x + 3, by + 17, 36, 9, [0.48, 0.22, 0.10, 1]);
+          r.drawRect(ent.x + 4, by + 26, 34, 9, [0.94, 0.64, 0.20, 1]);
+        }
+
+        else if (ent.type === 'TINY_PEBBLE') {
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.55, 0.52, 0.58, 1], [0.80, 0.78, 0.84, 1], [0.28, 0.26, 0.32, 1], 2);
+        }
+
+        else if (ent.type === 'WISP_PLATFORM') {
+          // 平時完全隱形，每隔一秒閃出幽綠鬼火輪廓
+          if (ent.glow) {
+            r.drawRect(ent.x, ent.y, ent.w, ent.h, [0.22, 0.95, 0.68, 0.55]);
+          }
+          // 中心永遠只有一粒極微弱的鬼火粒子提示
+          r.drawRect(ent.x + ent.w * 0.5 - 3, ent.y + 6, 6, 6, [0.45, 1.0, 0.82, 0.85]);
+        }
+
+        else if (ent.type === 'FAKE_CP_BOMB') {
+          r.drawRect(ent.x, ent.y, 6, ent.h, [0.95, 0.85, 0.75, 1]);
+          const blink = ent.triggered && Math.sin(this.time * 40) > 0;
+          const flagCol = blink ? [1, 1, 1, 1] : [0.96, 0.20, 0.32, 1];
+          r.pushTri(ent.x + 6, ent.y + 4, ent.x + 44, ent.y + 20, ent.x + 6, ent.y + 36, ...flagCol);
+        }
+
+        else if (ent.type === 'TIME_HOURGLASS' && !ent.triggered) {
+          const col = ent.scale < 1 ? [0.25, 0.82, 0.98, 1] : [0.98, 0.72, 0.14, 1];
+          r.pushTri(ent.x, ent.y, ent.x + ent.w, ent.y, ent.x + ent.w * 0.5, ent.y + ent.h * 0.5, ...col);
+          r.pushTri(ent.x + ent.w * 0.5, ent.y + ent.h * 0.5, ent.x, ent.y + ent.h, ent.x + ent.w, ent.y + ent.h, ...col);
+        }
+
+        else if (ent.type === 'SPACE_SPRING') {
+          r.drawRect(ent.x + 8, ent.y + 8, ent.w - 16, ent.h - 8, [0.75, 0.78, 0.85, 1]);
+          r.drawBevelBox(ent.x, ent.y, ent.w, 10, [0.98, 0.78, 0.14, 1], [1, 0.95, 0.55, 1], [0.75, 0.45, 0.04, 1], 2);
+        }
+
+        else if (ent.type === 'SPONGE_SPIKE') {
+          // 海綿假地刺：外表超恐怖血紅尖刺，觸發後略微壓扁顯示軟綿綿質感
+          const h = ent.triggered ? ent.h * 0.65 : ent.h;
+          const y = this.groundY - h;
+          const count = Math.max(1, Math.floor(ent.w / 24));
+          const sw = ent.w / count;
+          for (let i = 0; i < count; i++) {
+            r.drawSpike(ent.x + i * sw, y, sw, h, true, [0.98, 0.26, 0.42, 1]);
+          }
+        }
+
+        else if (ent.type === 'BOMB_PLATFORM' && !ent.triggered) {
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.22, 0.78, 0.55, 1], [0.55, 0.98, 0.78, 1], [0.08, 0.45, 0.28, 1], 3);
+        }
+
+        else if (ent.type === 'LOW_LASER_BAR') {
+          r.drawRect(ent.x, ent.y, ent.w, ent.h, [0.96, 0.14, 0.34, 0.78]);
+          r.drawRect(ent.x, ent.y + 12, ent.w, ent.h - 24, [1.0, 0.92, 0.95, 0.95]);
+        }
+
+        else if (ent.type === 'TRACTOR_UFO') {
+          r.drawRect(ent.x + 18, ent.y, 38, 16, [0.35, 0.98, 0.65, 0.85]);
+          r.drawBevelBox(ent.x, ent.y + 12, ent.w, 22, [0.28, 0.35, 0.48, 1], [0.55, 0.68, 0.85, 1], [0.14, 0.18, 0.26, 1], 3);
+          // 綠色吸星光束
+          const beamX = ent.x + ent.w * 0.5 - 24;
+          r.drawRect(beamX, ent.y + ent.h, 48, this.groundY - ent.y, [0.22, 0.95, 0.55, 0.22]);
+        }
+
+        else if (ent.type === 'MIMIC_CHEST') {
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.88, 0.62, 0.12, 1], [1.0, 0.88, 0.38, 1], [0.52, 0.32, 0.04, 1], 3);
+          if (ent.triggered) {
+            // 張開血盆大口與利齒！
+            r.drawRect(ent.x + 4, ent.y + 16, ent.w - 8, 18, [0.55, 0.04, 0.12, 1]);
+            r.drawSpike(ent.x + 8, ent.y + 16, 10, 8, false, [1, 1, 1, 1]);
+            r.drawSpike(ent.x + 24, ent.y + 16, 10, 8, false, [1, 1, 1, 1]);
+          } else {
+            r.drawRect(ent.x + ent.w * 0.5 - 5, ent.y + 18, 10, 12, [1, 0.95, 0.65, 1]);
+          }
+        }
+
+        else if (ent.type === 'DROP_ELEVATOR') {
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.58, 0.62, 0.72, 1], [0.85, 0.88, 0.95, 1], [0.28, 0.32, 0.40, 1], 3);
+        }
+
+        else if (ent.type === 'HIDDEN_BLOCK') {
+          if (!ent.triggered) return;
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.92, 0.32, 0.12, 1], [1.0, 0.68, 0.24, 1], [0.52, 0.12, 0.05, 1], 4);
+          r.drawRect(ent.x + 16, ent.y + 10, 14, 5, [0.15, 0.04, 0.02, 1]);
+          r.drawRect(ent.x + 25, ent.y + 15, 5, 8, [0.15, 0.04, 0.02, 1]);
+          r.drawRect(ent.x + 20, ent.y + 21, 8, 5, [0.15, 0.04, 0.02, 1]);
+          r.drawRect(ent.x + 20, ent.y + 31, 5, 5, [0.15, 0.04, 0.02, 1]);
+        }
+
+        else if (ent.type === 'HELL_PILLAR') {
+          const isCopy = ent.subtype === 'COPY_JUMP';
+          const col = isCopy ? [0.85, 0.22, 0.95, 1] : [0.95, 0.45, 0.12, 1];
+          const dark = isCopy ? [0.48, 0.08, 0.58, 1] : [0.58, 0.18, 0.04, 1];
+          r.drawBevelBox(ent.x + 4, ent.y + 16, ent.w - 8, ent.h - 16, col, [1, 0.78, 0.32, 1], dark, 3);
+          r.drawSpike(ent.x + 2, ent.y, ent.w - 4, 20, true, [1.0, 0.82, 0.22, 1]);
+        }
+
+        else if (ent.type === 'WEAK_BRIDGE') {
+          r.drawBevelBox(ent.x, ent.y, ent.w, 18, [0.82, 0.78, 0.72, 1], [0.98, 0.95, 0.90, 1], [0.45, 0.40, 0.36, 1], 2);
+        }
+
+        else if (ent.type === 'SPIKE' || ent.type === 'SPIKE_PIT' || ent.type === 'CEILING_SPIKE') {
+          const pointUp = ent.type !== 'CEILING_SPIKE';
+          const count = Math.max(1, Math.floor(ent.w / 24));
+          const sw = ent.w / count;
+          for (let i = 0; i < count; i++) {
+            r.drawSpike(ent.x + i * sw, ent.y, sw, ent.h, pointUp, [0.96, 0.22, 0.38, 1]);
+          }
+        }
+
+        else if (ent.type === 'FAKE_FISH' && !ent.triggered) {
+          const bob = Math.sin(this.time * 7) * 6;
+          const fy = ent.y + bob;
+          r.drawBevelBox(ent.x + 8, fy + 6, 26, 22, [0.99, 0.80, 0.12, 1], [1, 0.95, 0.55, 1], [0.78, 0.48, 0.04, 1], 2);
+          r.pushTri(ent.x, fy + 8, ent.x + 10, fy + 17, ent.x, fy + 26, 0.98, 0.65, 0.1, 1);
+        }
+
+        else if (ent.type === 'UPSIDE_DOWN_ZONE' || ent.type === 'MIRROR_ZONE') {
+          const zoneCol = ent.type === 'UPSIDE_DOWN_ZONE' ? [0.65, 0.22, 0.95, 0.14] : [0.95, 0.22, 0.55, 0.14];
+          r.drawRect(ent.x, ent.y, ent.w, ent.h, zoneCol);
+          r.drawRect(ent.x, ent.y, 4, ent.h, [zoneCol[0], zoneCol[1], zoneCol[2], 0.65]);
+        }
+
+        else if (ent.type === 'CONFUSE_BONE' && !ent.triggered) {
+          r.drawRect(ent.x + 6, ent.y + 15, 28, 10, [0.85, 0.98, 0.45, 1]);
+          r.drawRect(ent.x + 2, ent.y + 10, 8, 20, [0.72, 0.92, 0.32, 1]);
+          r.drawRect(ent.x + 30, ent.y + 10, 8, 20, [0.72, 0.92, 0.32, 1]);
+        }
+
+        else if (ent.type === 'CHECKPOINT') {
+          r.drawRect(ent.x, ent.y, 6, ent.h, [0.95, 0.85, 0.75, 1]);
+          const flagCol = ent.triggered ? [0.98, 0.75, 0.15, 1] : [0.55, 0.32, 0.45, 1];
+          r.pushTri(ent.x + 6, ent.y + 4, ent.x + 44, ent.y + 20, ent.x + 6, ent.y + 36, ...flagCol);
+        }
+
+        else if (ent.type === 'FAKE_FINAL_GATE') {
+          r.drawBevelBox(ent.x, ent.y, ent.w, ent.h, [0.35, 0.12, 0.48, 1], [0.85, 0.45, 0.98, 1], [0.18, 0.04, 0.25, 1], 5);
+          r.drawRect(ent.x + 18, ent.y + 28, ent.w - 36, ent.h - 28, [0.98, 0.78, 0.18, 0.85]);
+        }
+
+        else if (ent.type === 'REAL_GOAL_FLAG') {
+          r.drawRect(ent.x + 14, ent.y, 8, ent.h, [0.98, 0.84, 0.2, 1]);
+          r.pushTri(ent.x + 22, ent.y + 10, ent.x + 88, ent.y + 34, ent.x + 22, ent.y + 58, 0.2, 0.92, 0.52, 1);
+        }
+      }
+
+      /**
+       * 繪製原創「地獄貓 (Hell Cat)」主角 (支援正常、巨無霸、12像素微塵縮細、天花板倒立形態)
+       */
+      renderHellCat() {
+        const r = this.renderer;
+        const p = this.player;
+
+        const drawW = p.w * p.scaleX;
+        const drawH = p.h * p.scaleY;
+        const drawX = p.x + (p.w - drawW) * 0.5;
+        const drawY = p.y + (p.h - drawH);
+
+        const bodyCol = p.sizeMode === 'GIANT'
+          ? [0.96, 0.55, 0.12, 1]
+          : p.sizeMode === 'TINY'
+            ? [0.98, 0.35, 0.65, 1]
+            : [0.16, 0.11, 0.22, 1];
+        const lightCol = p.sizeMode === 'GIANT' ? [1.0, 0.85, 0.35, 1] : [0.34, 0.22, 0.46, 1];
+        const darkCol = p.sizeMode === 'GIANT' ? [0.68, 0.28, 0.04, 1] : [0.08, 0.05, 0.12, 1];
+
+        // 微塵縮細形態簡化高對比渲染
+        if (p.sizeMode === 'TINY') {
+          r.drawBevelBox(drawX, drawY, drawW, drawH, bodyCol, [1, 0.8, 0.9, 1], darkCol, 1);
+          r.drawRect(drawX + drawW - 4, drawY + 3, 3, 3, [1, 0.9, 0.2, 1]);
+          return;
+        }
+
+        // 1. 飄揚的烈焰地獄紅圍巾
+        const scarfWave = Math.sin(this.time * 18) * 6;
+        r.pushTri(
+          drawX + 6, drawY + drawH * 0.46,
+          drawX - 26, drawY + drawH * 0.40 + scarfWave,
+          drawX - 18, drawY + drawH * 0.56 + scarfWave,
+          0.96, 0.20, 0.34, 1
+        );
+
+        // 2. 惡魔箭頭貓尾
+        const tailWag = Math.cos(this.time * 14) * 7;
+        r.drawRect(drawX - 12, drawY + drawH * 0.62 + tailWag * 0.4, 14, 5, [0.96, 0.22, 0.36, 1]);
+        r.pushTri(
+          drawX - 12, drawY + drawH * 0.56 + tailWag * 0.4,
+          drawX - 22, drawY + drawH * 0.64 + tailWag * 0.4,
+          drawX - 12, drawY + drawH * 0.72 + tailWag * 0.4,
+          0.98, 0.32, 0.42, 1
+        );
+
+        // 3. 貓身與貓頭
+        if (p.ducking) {
+          r.drawBevelBox(drawX, drawY + 6, drawW + 14, drawH - 6, bodyCol, lightCol, darkCol, 3);
+        } else {
+          r.drawBevelBox(drawX + 5, drawY + drawH * 0.40, drawW - 10, drawH * 0.45, bodyCol, lightCol, darkCol, 3);
+          r.drawBevelBox(drawX + 4, drawY + 8, drawW - 4, drawH * 0.38, bodyCol, lightCol, darkCol, 3);
+          r.drawRect(drawX + drawW * 0.56, drawY + drawH * 0.46, 7, 7, [0.99, 0.82, 0.16, 1]);
+        }
+
+        // 4. 尖銳地獄貓耳
+        const earBaseY = drawY + 9;
+        r.pushTri(drawX + 8, earBaseY, drawX + 13, earBaseY - 14, drawX + 20, earBaseY, ...bodyCol);
+        r.pushTri(drawX + 24, earBaseY, drawX + 31, earBaseY - 14, drawX + 36, earBaseY, ...bodyCol);
+        r.pushTri(drawX + 11, earBaseY, drawX + 13, earBaseY - 8, drawX + 18, earBaseY, 0.96, 0.24, 0.38, 1);
+        r.pushTri(drawX + 26, earBaseY, drawX + 31, earBaseY - 8, drawX + 34, earBaseY, 0.96, 0.24, 0.38, 1);
+
+        // 5. 發光金黃惡魔貓眼 + 貓鬍鬚
+        const eyeX = p.ducking ? drawX + drawW - 4 : drawX + drawW - 14;
+        const eyeY = p.ducking ? drawY + 14 : drawY + 15;
+        r.drawRect(eyeX, eyeY, 8, 6, [1.0, 0.85, 0.18, 1]);
+        r.drawRect(eyeX + 4, eyeY + 1, 3, 4, [0.15, 0.02, 0.05, 1]);
+        r.drawRect(eyeX + 4, eyeY + 9, 10, 2, [0.95, 0.75, 0.82, 0.8]);
+        r.drawRect(eyeX + 4, eyeY + 13, 9, 2, [0.95, 0.75, 0.82, 0.8]);
+
+        // 6. 交替奔跑的雙腿
+        const legOffset = p.grounded ? Math.sin(p.runCycle) * 7 : 5;
+        const legY = drawY + drawH - 10;
+        r.drawRect(drawX + 10 + legOffset, legY, 8, 10, darkCol);
+        r.drawRect(drawX + 24 - legOffset, legY, 8, 10, lightCol);
+      }
+
+      bindEvents() {
+        window.addEventListener('keydown', (e) => {
+          if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
+            e.preventDefault();
+            this.handleJumpInput();
+          } else if (['ArrowDown', 'KeyS'].includes(e.code)) {
+            e.preventDefault();
+            this.setDuck(true);
+          } else if (e.code === 'KeyR') {
+            e.preventDefault();
+            this.startGame();
+          }
+        });
+
+        window.addEventListener('keyup', (e) => {
+          if (['ArrowDown', 'KeyS'].includes(e.code)) {
+            this.setDuck(false);
+          }
+        });
+
+        const btnJump = document.getElementById('touch-jump');
+        const btnDuck = document.getElementById('touch-duck');
+
+        const bindTouchBtn = (el, onDown, onUp) => {
+          el.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            el.classList.add('pressed');
+            onDown();
+          });
+          const release = (e) => {
+            e.preventDefault();
+            el.classList.remove('pressed');
+            if (onUp) onUp();
+          };
+          el.addEventListener('pointerup', release);
+          el.addEventListener('pointercancel', release);
+          el.addEventListener('pointerleave', release);
+        };
+
+        bindTouchBtn(btnJump, () => this.handleJumpInput(), null);
+        bindTouchBtn(btnDuck, () => this.setDuck(true), () => this.setDuck(false));
+
+        this.canvas.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          this.handleJumpInput();
+        });
+
+        // 假系統錯誤彈窗按鈕綁定 (陷阱 #3：撳任何掣都會召喚巨型鐵鎚砸死自己！)
+        ['crash-btn-ok', 'crash-btn-cancel', 'crash-close-x'].forEach((id) => {
+          document.getElementById(id).addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            this.closeCrashDialog(true);
+          });
+        });
+
+        document.getElementById('btn-start').addEventListener('click', () => this.startGame());
+        document.getElementById('btn-restart').addEventListener('click', () => this.startGame());
+        document.getElementById('btn-cp-menu').addEventListener('click', () => this.openCheckpointModal());
+
+        const btnMode = document.getElementById('btn-mode');
+        btnMode.addEventListener('click', () => {
+          this.mode = this.mode === 'CAMPAIGN' ? 'ENDLESS' : 'CAMPAIGN';
+          btnMode.innerHTML = this.mode === 'CAMPAIGN' ? '<span>🔥 50關長征</span>' : '<span>♾️ 無盡煉獄</span>';
+          this.startGame();
+        });
+
+        const btnBgm = document.getElementById('btn-bgm');
+        btnBgm.addEventListener('click', () => {
+          const on = HellAudio.toggleBGM();
+          btnBgm.innerHTML = on ? '<span>🎵 音樂: 開</span>' : '<span>🎵 音樂: 關</span>';
+        });
+
+        const btnSfx = document.getElementById('btn-sfx');
+        btnSfx.addEventListener('click', () => {
+          const on = HellAudio.toggleSFX();
+          btnSfx.innerHTML = on ? '<span>🔊 音效: 開</span>' : '<span>🔇 音效: 關</span>';
+        });
+      }
+    }
+
+    /**
+     * ============================================================================
+     * 啟動程序
+     * ============================================================================
+     */
+    window.onload = async function () {
+      await WasmPhysicsEngine.init();
+      const game = new HellCatGame();
+
+      let lastTime = performance.now();
+      function gameLoop(now) {
+        const dt = Math.min(0.05, (now - lastTime) / 1000);
+        lastTime = now;
+
+        game.update(dt);
+        game.render();
+        requestAnimationFrame(gameLoop);
+      }
+
+      requestAnimationFrame(gameLoop);
+    };
+  
+  </script>
+</body>
+</html>
